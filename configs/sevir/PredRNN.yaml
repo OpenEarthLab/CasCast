@@ -1,0 +1,81 @@
+sevir: &sevir
+  type: sevir
+  input_length: &input_length 13 
+  pred_length: &pred_length 12
+  total_length: &total_length 25
+  base_freq: 5min
+  data_dir: radar:s3://weather_radar_datasets/sevir
+
+dataset:
+  train:
+    <<: *sevir
+
+  valid:
+    <<: *sevir
+
+sampler:
+  type: TrainingSampler
+
+dataloader:
+  num_workers: 8 
+  pin_memory: False
+  prefetch_factor: 2
+  persistent_workers: True
+
+trainer:
+  batch_size: 20 # to check
+  valid_batch_size: 40
+  max_epoch: &max_epoch 1
+  max_step: 45600
+
+model:
+  type: dec_model
+  params:
+    sub_model:
+      PredRNN:
+        num_layers: 4
+        num_hidden: [128, 128, 128, 128]
+        img_channel: 1
+        img_width: 384
+        img_height: 384
+        patch_size: 8
+        stride: 1 
+        filter_size: 3
+
+    save_best: &loss_type MSE
+    use_ceph: True
+    ceph_checkpoint_path: "mpas:s3://sevir/checkpoint"
+    metrics_type: SEVIRSkillScore
+    data_type: fp32
+
+    visualizer:
+      visualizer_type: sevir_visualizer
+      visualizer_step: 8000
+
+    optimizer:
+      PredRNN:
+        type: AdamW
+        params:
+          lr: 0.001
+          betas: [0.9, 0.95]
+          # eps: 0.000001
+
+    lr_scheduler:
+      PredRNN:
+        by_step: True
+        sched: cosine
+        epochs: *max_epoch
+        min_lr: 0.
+        warmup_lr: 0.
+        warmup_epochs: 0.0033
+        lr_noise: 
+        cooldown_epochs: 0
+
+    extra_params:
+      loss_type: MSELoss
+      enabled_amp: False
+      log_step: 20
+      z_score_delta: False
+
+    wandb:
+      project_name: sevir

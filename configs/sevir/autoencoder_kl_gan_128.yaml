@@ -1,0 +1,107 @@
+sevir: &sevir
+  type: sevir_pretrain
+
+dataset:
+  train:
+    <<: *sevir
+
+  valid:
+    <<: *sevir
+
+sampler:
+  type: TrainingSampler
+
+dataloader:
+  num_workers: 8 
+  pin_memory: False
+  prefetch_factor: 2
+  persistent_workers: True
+
+trainer:
+  batch_size: 8 # to check
+  valid_batch_size: 16
+  max_epoch: &max_epoch 1
+  max_step: 200000
+
+model:
+  type: autoencoder_kl_gan_128_model
+  params:
+    sub_model:
+      autoencoder_kl:
+        in_channels: 1
+        out_channels: 1
+        down_block_types: ['DownEncoderBlock2D', 'DownEncoderBlock2D', 'DownEncoderBlock2D', 'DownEncoderBlock2D']
+        up_block_types: ['UpDecoderBlock2D', 'UpDecoderBlock2D', 'UpDecoderBlock2D', 'UpDecoderBlock2D']
+        block_out_channels: [128, 256, 512, 512]
+        layers_per_block: 2
+        latent_channels: 8
+        norm_num_groups: 32
+
+      lpipsWithDisc:
+        disc_start: 25001 ## not default
+        logvar_init: 0.0
+        kl_weight: 0.000001
+        pixelloss_weight: 1.0
+        disc_num_layers: 3
+        disc_in_channels: 1
+        disc_factor: 1.0
+        disc_weight: 0.5
+        perceptual_weight: 0.0
+
+    save_best: &loss_type MSE
+    use_ceph: True
+    ceph_checkpoint_path: "mpas:s3://sevir/checkpoint"
+    metrics_type: SEVIRSkillScore
+    data_type: fp32
+
+    visualizer:
+      visualizer_type: sevir_visualizer
+      visualizer_step: 1000
+
+    optimizer:
+      autoencoder_kl:
+        type: AdamW
+        params:
+          lr: 0.0001
+          betas: [0.9, 0.999]
+          weight_decay: 0.00001
+          # eps: 0.000001
+      
+      lpipsWithDisc:
+        type: AdamW
+        params:
+          lr: 0.0001
+          betas: [0.9, 0.999]
+          weight_decay: 0.00001
+
+
+    lr_scheduler:
+      autoencoder_kl:
+        by_step: True
+        sched: cosine
+        epochs: *max_epoch
+        min_lr: 0.000001
+        warmup_lr: 0.000001
+        warmup_epochs: 0.1
+        lr_noise: 
+        cooldown_epochs: 0
+      
+      lpipsWithDisc:
+        by_step: True
+        sched: cosine
+        epochs: *max_epoch
+        min_lr: 0.000001
+        warmup_lr: 0.000001
+        warmup_epochs: 0.1
+        lr_noise: 
+        cooldown_epochs: 0
+
+    extra_params:
+      loss_type: MSELoss
+      enabled_amp: False
+      log_step: 20
+      z_score_delta: False
+      # checkpoint_path: EarthFormer_xy/world_size1-xytest/checkpoint_latest.pth ## for pretrained advective predictor
+
+    # wandb:
+    #   project_name: sevir

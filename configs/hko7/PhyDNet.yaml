@@ -1,0 +1,81 @@
+hko7: &hko7
+  type: hko7_mp
+  input_length: &input_length 10 
+  pred_length: &pred_length 10
+  total_length: &total_length 20
+  base_freq: 6min
+
+dataset:
+  train:
+    <<: *hko7
+
+  valid:
+    <<: *hko7
+
+sampler:
+  type: TrainingSampler
+
+dataloader:
+  num_workers: 8 
+  pin_memory: False
+  prefetch_factor: 2
+  persistent_workers: True
+
+trainer:
+  batch_size: 8
+  test_batch_size: 16
+  max_epoch: &max_epoch 1
+  max_step: 30000
+
+model:
+  type: phydnet_model
+  params:
+    sub_model:
+      PhyDNet:
+        configs: 
+          in_shape: [10, 1, 480, 480]
+          patch_size: 4
+          pre_seq_length: 10
+          aft_seq_length: 10
+
+    save_best: &loss_type MSE
+    use_ceph: True
+    metrics_type: hko7_official
+    hko7_seq_len: 10 # seq_len is a parameter of hko7_official evaluator
+    ceph_checkpoint_path: "mpas:s3://hko7/checkpoint"
+    data_type: fp32
+
+    visualizer:
+      visualizer_type: hko7_visualizer
+      visualizer_step: 1500
+      
+    optimizer:
+      PhyDNet:
+        type: AdamW
+        params:
+          lr: 0.001
+          betas: [0.9, 0.95]
+          # eps: 0.000001
+
+    lr_scheduler:
+      PhyDNet:
+        by_step: True
+        sched: cosine
+        epochs: *max_epoch
+        min_lr: 0.
+        warmup_lr: 0.
+        warmup_epochs: 0.0033
+        lr_noise: 
+        cooldown_epochs: 0
+
+    extra_params:
+      loss_type: MSELoss
+      enabled_amp: False
+      log_step: 20
+      z_score_delta: False
+
+    wandb:
+      project_name: hko7
+
+
+

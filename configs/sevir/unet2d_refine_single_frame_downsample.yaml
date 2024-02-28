@@ -1,0 +1,113 @@
+sevir: &sevir
+  type: sevir
+  input_length: &input_length 13 
+  pred_length: &pred_length 12
+  total_length: &total_length 25
+  base_freq: 5min
+  data_dir: radar:s3://weather_radar_datasets/sevir
+
+dataset:
+  train:
+    <<: *sevir
+
+  valid:
+    <<: *sevir
+
+sampler:
+  type: TrainingSampler
+
+dataloader:
+  num_workers: 8 
+  pin_memory: False
+  prefetch_factor: 2
+  persistent_workers: True
+
+trainer:
+  batch_size: 2 # to check
+  valid_batch_size: 4
+  max_epoch: &max_epoch 1
+  max_step: 50000
+
+model:
+  type: mcvd_diffusion_single_frame_downsample_model
+  params:
+    diffusion_kwargs:
+        noise_scheduler:
+          # DPMSolverMultistepScheduler:
+          #   num_train_timesteps: &num_classes 20
+          #   beta_start: &sigma_start 0.0001
+          #   beta_end: &sigma_end 0.02
+          #   beta_schedule: &sigma_dist linear
+          DDPMScheduler:
+            num_train_timesteps: &num_classes 1000
+            beta_start: &sigma_start 0.0001
+            beta_end: &sigma_end 0.02
+            beta_schedule: &sigma_dist linear
+            clip_sample_range: 13
+          noise_scale: 1.0
+
+    sub_model:
+      EarthFormer_xy:
+        in_len: 13
+        out_len: 12
+        height: 384
+        width: 384
+
+      unet2d:
+        use_checkpoint: False
+        # num_classes: 1000  # timesteps for noise conditioning (here constant, just need one)
+        image_size: 256
+        in_channels: 2
+        out_channels: 1
+        model_channels: 128
+        attention_resolutions: [8]
+        num_res_blocks: 2
+        channel_mult: [ 1, 2, 2, 4]
+        disable_self_attentions: [True, True, True, False]
+        disable_middle_self_attn: False
+        num_heads: 8
+        # use_spatial_transformer: True
+        transformer_depth: 1
+        # context_dim: 
+        legacy: False
+        use_linear_in_transformer: True
+
+
+    save_best: &loss_type MSE
+    use_ceph: True
+    ceph_checkpoint_path: "mpas:s3://sevir/checkpoint"
+    metrics_type: None
+    data_type: fp32
+
+    visualizer:
+      visualizer_type: sevir_visualizer
+      visualizer_step: 500
+
+    optimizer:
+      unet2d:
+        type: AdamW
+        params:
+          lr: 0.001
+          betas: [0.9, 0.95]
+
+    lr_scheduler:
+      unet2d:
+        by_step: True
+        sched: cosine
+        epochs: *max_epoch
+        min_lr: 0.00001
+        warmup_lr: 0.00001
+        warmup_epochs: 0.1
+        lr_noise: 
+        cooldown_epochs: 0
+
+    extra_params:
+      loss_type: MSELoss
+      enabled_amp: False
+      log_step: 20
+      z_score_delta: False
+      checkpoint_path: EarthFormer_xy/world_size1-xytest/checkpoint_latest.pth ## for pretrained advective predictor
+      downsample_size: 256
+
+    wandb:
+      project_name: sevir

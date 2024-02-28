@@ -1,0 +1,126 @@
+hko7: &hko7
+  type: hko7_mp
+  input_length: &input_length 10 
+  pred_length: &pred_length 10
+  total_length: &total_length 20
+  base_freq: 6min
+
+
+dataset:
+  train:
+    <<: *hko7
+
+  valid:
+    <<: *hko7
+
+sampler:
+  type: TrainingSampler
+
+dataloader:
+  num_workers: 8 
+  pin_memory: False
+  prefetch_factor: 2
+  persistent_workers: True
+
+trainer:
+  batch_size: 6 # to check
+  valid_batch_size: 16
+  max_epoch: &max_epoch 1
+  max_step: 50000
+
+model:
+  type: nowcast_gan_model
+  params:
+    sub_model:
+      SimVP:
+        in_shape: [10, 1, 480, 480]
+        hid_S: 32
+        hid_T: 256
+        N_S: 4
+        N_T: 6
+
+        out_frames: 10
+
+        model_type: 'gSTA'
+        mlp_ratio: 8
+        drop: 0.0
+        drop_path: 0.0
+        spatio_kernel_enc: 3
+        spatio_kernel_dec: 3
+        act_inplace: True
+
+      nowcast_generator:
+        total_length: 20
+        input_length: 10
+        ngf: 32
+        img_height: 480
+        img_width: 480
+        ic_feature: 320
+        gen_oc: 10
+        evo_ic: 10
+
+      nowcast_discriminator:
+        inp_len: 10
+        pred_len: 10
+        first_group_num: 4
+        L1_group_num: 37
+        in_chan: 148 ## determined by the debug process in discriminator
+
+    save_best: &loss_type MSE
+    use_ceph: True
+    ceph_checkpoint_path: "mpas:s3://hko7/checkpoint"
+    metrics_type: hko7_official
+    hko7_seq_len: 10 # seq_len is a parameter of hko7_official evaluator
+    data_type: fp32
+
+    visualizer:
+      visualizer_type: hko7_visualizer
+      visualizer_step: 2000
+
+    optimizer:      
+      nowcast_generator:
+        type: AdamW
+        params:
+          lr: 0.00003
+          betas: [0.9, 0.999]
+          weight_decay: 0.00001
+
+      nowcast_discriminator:
+        type: AdamW
+        params:
+          lr: 0.00003
+          betas: [0.9, 0.999]
+          weight_decay: 0.00001
+
+
+
+    lr_scheduler:      
+      nowcast_generator:
+        by_step: True
+        sched: cosine
+        epochs: *max_epoch
+        min_lr: 0.00001
+        warmup_lr: 0.00001
+        warmup_epochs: 0.1
+        lr_noise: 
+        cooldown_epochs: 0
+
+      nowcast_discriminator:
+        by_step: True
+        sched: cosine
+        epochs: *max_epoch
+        min_lr: 0.00001
+        warmup_lr: 0.00001
+        warmup_epochs: 0.1
+        lr_noise: 
+        cooldown_epochs: 0
+
+    extra_params:
+      loss_type: MSELoss
+      enabled_amp: False
+      log_step: 20
+      z_score_delta: False
+      checkpoint_path: SimVP/world_size4-official_setting_bs32/checkpoint_latest.pth ## for pretrained advective predictor
+
+    wandb:
+      project_name: hko7

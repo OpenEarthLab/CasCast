@@ -1,0 +1,150 @@
+sevir: &sevir
+  type: sevir_latent25_and_coarse_pred
+  input_length: &input_length 13 
+  pred_length: &pred_length 12
+  total_length: &total_length 25
+  base_freq: 5min
+  data_dir: radar:s3://sevir_latent
+  compress_data_source: sevir_25
+  coarse_model: earthformer
+  latent_size: 48x48x4
+
+dataset:
+  train:
+    <<: *sevir
+
+  valid:
+    <<: *sevir
+
+sampler:
+  type: TrainingSampler
+
+dataloader:
+  num_workers: 8 
+  pin_memory: False
+  prefetch_factor: 2
+  persistent_workers: True
+
+trainer:
+  batch_size: 1 # to check
+  valid_batch_size: 2
+  max_epoch: &max_epoch 1
+  max_step: 60000
+
+model:
+  type: latent_diffusion_direct_pred_model
+  params:
+    diffusion_kwargs:
+        noise_scheduler:
+          # DPMSolverMultistepScheduler:
+          #   num_train_timesteps: &num_classes 20
+          #   beta_start: &sigma_start 0.0001
+          #   beta_end: &sigma_end 0.02
+          #   beta_schedule: &sigma_dist linear
+          DDPMScheduler:
+            num_train_timesteps: &num_classes 1000
+            beta_start: &sigma_start 0.0001
+            beta_end: &sigma_end 0.02
+            beta_schedule: &sigma_dist linear
+            clip_sample_range: 5
+          noise_scale: 1.0
+
+    sub_model:
+      prediffNet:
+        input_shape: [13, 48, 48, 4]
+        target_shape: [12, 48, 48, 4]
+        base_units: 256
+        scale_alpha: 1.0
+        num_heads: 4
+        attn_drop: 0.1
+
+        proj_drop: 0.1
+        ffn_drop: 0.1
+        downsample: 2
+        downsample_type: patch_merge
+        upsample_type: upsample
+        upsample_kernel_size: 3
+        depth: [4, 4]
+        num_global_vectors: 0
+
+        use_global_vector_ffn: False
+        use_global_self_attn: True
+        separate_global_qkv: True
+        global_dim_ratio: 1
+
+        ffn_activation: gelu
+        gated_ffn: False
+        norm_layer: layer_norm
+        padding_type: zeros
+        pos_embed_type: t+h+w
+        checkpoint_level: 0
+
+        use_relative_pos: True
+        self_attn_use_final_proj: True
+        attn_linear_init_mode: '0'
+        ffn_linear_init_mode: '0'
+        ffn2_linear_init_mode: '2'
+
+        attn_proj_linear_init_mode: '2'
+        conv_init_mode: '0'
+        global_proj_linear_init_mode: '2'
+        norm_init_mode: '0'
+
+        time_embed_channels_mult: 4
+        time_embed_use_scale_shift_norm: False
+        time_embed_dropout: 0.0
+        unet_res_connect: True
+
+        block_attn_patterns: ['axial', 'axial']
+        down_linear_init_mode: '0'
+
+      autoencoder_kl:
+        in_channels: 1
+        out_channels: 1
+        down_block_types: ['DownEncoderBlock2D', 'DownEncoderBlock2D', 'DownEncoderBlock2D', 'DownEncoderBlock2D']
+        up_block_types: ['UpDecoderBlock2D', 'UpDecoderBlock2D', 'UpDecoderBlock2D', 'UpDecoderBlock2D']
+        block_out_channels: [128, 256, 512, 512]
+        layers_per_block: 2
+        latent_channels: 4
+        norm_num_groups: 32
+
+
+    save_best: &loss_type MSE
+    use_ceph: True
+    ceph_checkpoint_path: "mpas:s3://sevir/checkpoint"
+    metrics_type: None
+    data_type: fp32
+
+    visualizer:
+      visualizer_type: sevir_visualizer
+      visualizer_step: 4000
+
+    optimizer:
+      prediffNet:
+        type: AdamW
+        params:
+          lr: 0.0001
+          betas: [0.9, 0.95]
+          # eps: 0.000001
+      
+    lr_scheduler:
+      prediffNet:
+        by_step: True
+        sched: cosine
+        epochs: *max_epoch
+        min_lr: 0.000001
+        warmup_lr: 0.000001
+        warmup_epochs: 0.1
+        lr_noise: 
+        cooldown_epochs: 0
+
+    extra_params:
+      loss_type: MSELoss
+      enabled_amp: False
+      log_step: 20
+      predictor_checkpoint_path: None #EarthFormer_xy/world_size1-xytest/checkpoint_latest.pth ## for pretrained advective predictor
+      autoencoder_checkpoint_path: autoencoder_kl_gan/world_size4-48x48x4_40W/checkpoint_latest.pth ## for pretrained autoencoder
+      save_epoch_interval: 20
+
+    wandb:
+      project_name: sevir

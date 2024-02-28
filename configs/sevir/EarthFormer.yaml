@@ -1,0 +1,132 @@
+sevir: &sevir
+  type: sevir
+  input_length: &input_length 13 
+  pred_length: &pred_length 12
+  total_length: &total_length 25
+  base_freq: 5min
+  data_dir: radar:s3://weather_radar_datasets/sevir
+
+dataset:
+  train:
+    <<: *sevir
+
+  valid:
+    <<: *sevir
+
+sampler:
+  type: TrainingSampler
+
+dataloader:
+  num_workers: 8 
+  pin_memory: False
+  prefetch_factor: 2
+  persistent_workers: True
+
+trainer:
+  batch_size: 12 # to check
+  valid_batch_size: 24
+  max_epoch: &max_epoch 1
+  max_step: 73000
+
+model:
+  type: non_ar_model
+  params:
+    sub_model:
+      EarthFormer:
+        input_shape: [13, 384, 384, 1]
+        target_shape: [12, 384, 384, 1]
+        base_units: 128 #64
+        # block_units: null
+        scale_alpha: 1.0
+
+        enc_depth: [1, 1]
+        dec_depth: [1, 1]
+        enc_use_inter_ffn: true
+        dec_use_inter_ffn: true
+        dec_hierarchical_pos_embed: false #True
+
+        downsample: 2
+        downsample_type: "patch_merge"
+        upsample_type: "upsample"
+
+        num_global_vectors: 8
+        use_dec_self_global: false #True
+        dec_self_update_global: true
+        use_dec_cross_global: false #True
+        use_global_vector_ffn: false #True
+        use_global_self_attn: true #False
+        separate_global_qkv: true #False
+        global_dim_ratio: 1
+
+        self_pattern: "axial"
+        cross_self_pattern: "axial"
+        cross_pattern: "cross_1x1"
+        dec_cross_last_n_frames: null #None
+
+        attn_drop: 0.1
+        proj_drop: 0.1
+        ffn_drop: 0.1
+        num_heads: 4
+
+        ffn_activation: "gelu"
+        gated_ffn: false
+        norm_layer: "layer_norm"
+        padding_type: "zeros"
+        pos_embed_type: "t+h+w" #"t+hw"
+        use_relative_pos: true
+        self_attn_use_final_proj: true
+        dec_use_first_self_attn: false
+
+        z_init_method: "zeros"
+        checkpoint_level: 0
+
+        initial_downsample_type: "stack_conv"
+        initial_downsample_activation: "leaky"
+        initial_downsample_stack_conv_num_layers: 3
+        initial_downsample_stack_conv_dim_list: [16, 64, 128] #[4, 16, cfg.base_units(64)]
+        initial_downsample_stack_conv_downscale_list: [3, 2, 2]
+        initial_downsample_stack_conv_num_conv_list: [2, 2, 2]
+
+        attn_linear_init_mode: "0"
+        ffn_linear_init_mode: "0"
+        conv_init_mode: "0"
+        down_up_linear_init_mode: "0"
+        norm_init_mode: "0"
+
+    save_best: &loss_type MSE
+    use_ceph: True
+    ceph_checkpoint_path: "mpas:s3://sevir/checkpoint"
+    metrics_type: SEVIRSkillScore
+    data_type: fp32
+
+    visualizer:
+      visualizer_type: sevir_visualizer
+      visualizer_step: 8000
+
+    optimizer:
+      EarthFormer:
+        type: AdamW
+        params:
+          lr: 0.001
+          betas: [0.9, 0.95]
+          # eps: 0.000001
+
+    lr_scheduler:
+      EarthFormer:
+        by_step: True
+        sched: cosine
+        epochs: *max_epoch
+        min_lr: 0.
+        warmup_lr: 0.
+        warmup_epochs: 0.0033
+        lr_noise: 
+        cooldown_epochs: 0
+
+    extra_params:
+      loss_type: MSELoss
+      enabled_amp: False
+      log_step: 20
+      z_score_delta: False
+
+    wandb:
+      project_name: sevir
