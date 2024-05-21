@@ -52,23 +52,9 @@ def subprocess_fn(args):
                             if "epochs" in key1:
                                 lr_scheduler_params[key][key1] *= steps_per_epoch
     
-    
-
     # build model
     logger.info('Building models ...')
     model = builder.get_model()
-    
-    if model.use_ceph:
-        model_checkpoint = os.path.join(args.relative_checkpoint_dir, 'checkpoint_latest.pth')
-    else:
-        model_checkpoint = os.path.join(args.run_dir, 'checkpoint_latest.pth')
-    if args.resume:
-        # model_checkpoint = 'pafno1f_posMapMul/world_size8-ps4-posMapMul/checkpoint_best.pth'
-        resume_checkpoint = args.resume_checkpoint
-        model_checkpoint = resume_checkpoint
-        ### TODO: important: FOR DEBUG ###
-        logger.info("warning: continue finetuning do not load scheduler!!!!!!!!!!!!!!!!!")
-        model.load_checkpoint(model_checkpoint, resume=True, load_scheduler=False)
 
     model_without_ddp = utils.DistributedParallel_Model(model, args.local_rank)
 
@@ -81,11 +67,7 @@ def subprocess_fn(args):
         cnt_params = sum([p.numel() for p in params])
         logger.info("params {key}: {cnt_params}".format(key=key, cnt_params=cnt_params))
 
-
-
-    # valid_dataloader = builder.get_dataloader(split = 'valid')
-    # logger.info('valid dataloaders build complete')
-    logger.info('begin preprocessing ...')
+    logger.info('begin compressing ...')
 
     # model_without_ddp.stat()
     model_without_ddp.trainer(train_data_loader=train_dataloader, valid_data_loader=valid_dataloader, test_data_loader=test_dataloader,
@@ -105,14 +87,6 @@ def main(args):
     if args.desc is not None:
         desc += f'-{args.desc}'
     
-    ##############################################
-    # ## trace net output unused ##
-    # os.environ['TORCH_DISTRIBUTED_DEBUG'] = "INFO"
-    ## or trace unused params in this way ##
-    # for name, param in self.model[list(self.model.keys())[0]].named_parameters():
-    #         if param.grad is None:
-    #             print(name)
-    ###############################################
     alg_dir = args.cfg.split("/")[-1].split(".")[0]
     ## check if outdir exists ##
     if not os.path.exists(args.outdir):

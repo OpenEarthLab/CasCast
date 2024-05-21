@@ -36,6 +36,8 @@ class latent_compress_model(basemodel):
         self.scale_factor = 1.0
 
         self.latent_size = params.get('latent_size', '48x48x1')
+        self.model_name = params.get('model_name', 'gt')
+        self.latent_data_save_dir = params.get('latent_data_save_dir', 'latent_data')
         
     def data_preprocess(self, data):
         data_dict = {}
@@ -71,16 +73,10 @@ class latent_compress_model(basemodel):
         ## the dir of saving models and prediction results ##
         self.checkpoint_savedir = checkpoint_savedir
 
-        from petrel_client.client import Client
         if 'sevir' in self.autoencoder_ckpt_path or self.metrics_type == 'SEVIRSkillScore':
             self.z_savedir = 'sevir_latent' 
-        elif 'hko7' in self.autoencoder_ckpt_path:
-            self.z_savedir = 'hko7_latent' 
-        elif 'meteonet' in self.autoencoder_ckpt_path:
-            self.z_savedir = 'meteonet_latent'
         else:
             raise NotImplementedError
-        self.z_client = Client(conf_path="~/petreloss.conf")
 
         if 'TrainingSampler' in self.sampler_type:
             self._iter_trainer(train_data_loader, test_data_loader, max_steps) 
@@ -93,8 +89,8 @@ class latent_compress_model(basemodel):
             if train_data_loader is not None:
                 train_data_loader.sampler.set_epoch(epoch)
 
-            # self.train_one_epoch(train_data_loader, epoch, max_epoches)
-            # self.train_one_epoch(valid_data_loader, epoch, max_epoches)
+            self.train_one_epoch(train_data_loader, epoch, max_epoches)
+            self.train_one_epoch(valid_data_loader, epoch, max_epoches)
             self.train_one_epoch(test_data_loader, epoch, max_epoches)
 
     @torch.no_grad()
@@ -123,11 +119,9 @@ class latent_compress_model(basemodel):
 
         max_step = get_data_loader_length(train_data_loader)
         for step, batch in enumerate(data_loader):
-            if (self.debug and step >=2) or self.sub_model_name[0] == "IDLE":
+            if (self.debug and step >=2):
                 self.logger.info("debug mode: break from train loop")
                 break
-            if isinstance(batch, int):
-                batch = None
         
             # record data read time
             data_time.update(time.time() - end_time)
@@ -170,12 +164,11 @@ class latent_compress_model(basemodel):
         self.logger.info('final results: {meters}'.format(meters=str(metric_logger)))
     
     def save_latents(self, latent_data, file_names):
-        for latent, file_name in zip(latent_data, file_names):
-            with io.BytesIO() as f:
-                np.save(f, latent.cpu().numpy())
-                f.seek(0)
-                self.z_client.put(file_name, f.read())
-        pass
+        dir_path = os.path.dirname(file_names[0])
+        os.makedirs(dir_path, exist_ok=True)
+        for i in range(len(file_names)):
+            np.save(file_names[i], latent_data[i].cpu().numpy())
+        return
     
     def get_save_names(self, file_names, size, model, data_source='sevir'):
         if data_source == 'sevir':
@@ -183,23 +176,8 @@ class latent_compress_model(basemodel):
             for file_name in file_names:
                 split = file_name.split('/')[-2]
                 sevir_name = file_name.split('/')[-1]
-                save_name = f'radar:s3://{self.z_savedir}/{size}/{model}/{split}/{sevir_name}'
-                save_names.append(save_name)
-        elif data_source == 'hko7':
-            save_names = []
-            for file_name in file_names:
-                start_time = datetime.datetime.strptime(file_name, "%Y-%m-%d %H:%M:%S")
-                datetime_clips = pd.date_range(start=start_time, periods=1, freq='6min')
-                date_time = datetime_clips[0]
-                ret =  os.path.join("%04d"%date_time.year, "%02d"%date_time.month, "%02d"%date_time.day,
-                                     'RAD%02d%02d%02d%02d%02d00.npy'%(date_time.year - 2000, date_time.month,
-                                                                    date_time.day, date_time.hour, date_time.minute))
-                save_name = f'radar:s3://{self.z_savedir}/{size}/{model}/{ret}'
-                save_names.append(save_name)
-        elif data_source == 'meteonet':
-            save_names = []
-            for file_name in file_names:
-                save_name = f'radar:s3://{self.z_savedir}/{size}/{model}/{file_name}'
+                save_name = os.path.join(self.latent_data_save_dir, self.z_savedir,
+                                         size, model, f'{split}'+'_2h', sevir_name) #f'radar:s3://{self.z_savedir}/{size}/{model}/{split}/{sevir_name}'
                 save_names.append(save_name)
         else:
             raise NotImplementedError
@@ -209,24 +187,22 @@ class latent_compress_model(basemodel):
     def train_one_step(self, batch_data, step):
         data_dict = self.data_preprocess(batch_data)
         inp, tar = data_dict['inputs'], data_dict['data_samples']
-        if self.metrics_type == 'SEVIRSkillScore':
-            tar = torch.cat([inp, tar], dim=1)
-        elif self.metrics_type == 'METEONETScore':
-            tar = torch.cat([inp, tar], dim=1)
-        else:
-            raise NotImplementedError
         file_name = data_dict['file_name']
         b, t, c, h, w = tar.shape
-        ## first, generate coarse advective field ##
         with torch.no_grad():
+            ## first, generate coarse advective field ##
+            if self.model_name == 'gt':
+                tar = tar
+            elif self.model_name == 'earthformer':
+                tar = self.model[list(self.model.keys())[1]](inp)
             ## second: encode to latent space ##
             z_tar = self.encode_stage(tar.reshape(-1, c, h, w).contiguous())
             rec_tar = self.decode_stage(z_tar)
             rec_tar = rearrange(rec_tar, '(b t) c h w -> b t c h w', b=b)
             z_tar = rearrange(z_tar, '(b t) c h w -> b t c h w', b=b)
-        import pdb; pdb.set_trace()
+
         ## self.get_save_names中model的超参在使用时如果是'gt'，则表示保存的是真实的latent，如果是'EarthFormer'，则表示保存的是EarthFormer预测的latent
-        gt_save_names = self.get_save_names(file_names=file_name, size=self.latent_size, model='gt', 
+        gt_save_names = self.get_save_names(file_names=file_name, size=self.latent_size, model=self.model_name, 
                                             data_source='sevir')
         self.save_latents(latent_data=z_tar, file_names=gt_save_names)
         loss = self.loss(rec_tar, tar) ## important: rescale the loss
@@ -236,201 +212,25 @@ class latent_compress_model(basemodel):
             data_dict['gt'] = tar
             data_dict['pred'] = rec_tar
             self.eval_metrics.update(target=data_dict['gt'], pred=data_dict['pred'])
-        elif self.metrics_type == 'hko7_official':
-            data_dict['gt'] = tar
-            data_dict['pred'] = rec_tar
-            self.eval_metrics.update(gt=data_dict['gt'].squeeze(1).cpu().numpy(), pred=data_dict['pred'].squeeze(1).cpu().numpy(),
-                                      mask=self.eval_metrics._exclude_mask )
-        elif self.metrics_type == 'METEONETScore':
-            data_dict['gt'] = tar
-            data_dict['pred'] = rec_tar
-            self.eval_metrics.update(target=data_dict['gt'], pred=data_dict['pred'])
+        else:
+            raise NotImplementedError
 
         return {self.loss_type: loss.item()}
     
         
     @torch.no_grad()
     def test_one_step(self, batch_data):
-        data_dict = self.data_preprocess(batch_data)
-        inp, tar = data_dict['inputs'], data_dict['data_samples']
-        b, t, c, h, w = tar.shape
-        ## first, generate coarse advective field ##
-        with torch.no_grad():
-            coarse_prediction = self.model[list(self.model.keys())[0]](inp)
-            coarse_prediction = coarse_prediction.detach() 
-            ## second: encode to latent space ##
-            z_tar = self.encode_stage(tar.reshape(-1, c, h, w).contiguous())
-            z_tar = rearrange(z_tar, '(b t) c h w -> b t c h w', b=b)
-            z_coarse_prediction = self.encode_stage(coarse_prediction.reshape(-1, c, h, w).contiguous())
-            z_coarse_prediction = rearrange(z_coarse_prediction, '(b t) c h w -> b t c h w', b=b)
-        ## third: train diffusion model ##
-        ## sample noise to add ##
-        noise = torch.randn_like(z_tar)
-        ## sample random timestep for each ##
-        bs = inp.shape[0]
-        timesteps = torch.randint(0, self.noise_scheduler.config.num_train_timesteps, (bs,), device=inp.device)
-        noisy_tar = self.noise_scheduler.add_noise(z_tar, noise, timesteps)
-
-        ## predict the noise residual ##
-        noise_pred = self.model[list(self.model.keys())[1]](x=noisy_tar, timesteps=timesteps, cond=z_coarse_prediction)
-
-        loss_records = {}
-        ## evaluate other metrics ##
-        data_dict = {}
-        data_dict['gt'] = noise
-        data_dict['pred'] = noise_pred
-        MSE_loss = torch.mean((noise_pred - noise) ** 2).item()
-        loss = self.loss(noise_pred, noise) ## important: rescale the loss
-
-        ## evaluation ##
-        if self.metrics_type == 'hko7_official':
-            data_dict['gt'] = data_dict['gt'].squeeze(2).cpu().numpy()
-            data_dict['pred'] = data_dict['pred'].squeeze(2).cpu().numpy()
-            self.eval_metrics.update(gt=data_dict['gt'], pred=data_dict['pred'], mask=self.eval_metrics._exclude_mask)
-            csi, mse, mae = self.eval_metrics.calculate_stat()
-            for i, thr in enumerate(self.eval_metrics._thresholds):
-                loss_records.update({f'CSI_{thr}': csi[:, i].mean()})
-            loss_records.update({'MSE': MSE_loss})
-        elif self.metrics_type == 'SEVIRSkillScore':
-            csi_total = 0
-            ## to pixel ##
-            data_dict['gt'] = data_dict['gt'].squeeze(2) * 255
-            data_dict['pred'] = data_dict['pred'].squeeze(2) * 255
-            self.eval_metrics.update(target=data_dict['gt'].cpu(), pred=data_dict['pred'].cpu())
-            metrics = self.eval_metrics.compute()
-            for i, thr in enumerate(self.eval_metrics.threshold_list):
-                loss_records.update({f'CSI_{thr}': metrics[thr
-                ]['csi']})
-                csi_total += metrics[thr]['csi']
-            loss_records.update({'CSI_m': csi_total / len(self.eval_metrics.threshold_list)})
-            loss_records.update({'MSE': MSE_loss})
-            # if (utils.get_world_size() > 1 and mpu.get_data_parallel_rank() == 0) or utils.get_world_size() == 1:
-            #     wandb.log({f'val_CSI_m': loss_records['CSI_m'] })
-        else:
-            loss_records.update({'MSE': MSE_loss})
-        
-        ## log to wandb ##
-        # if (utils.get_world_size() > 1 and mpu.get_data_parallel_rank() == 0) or utils.get_world_size() == 1:
-        #     wandb.log({f'val_{self.loss_type}': loss.item() })
-
-        return loss_records
+        pass
     
     
     @torch.no_grad()
     def test(self, test_data_loader, epoch):
-        metric_logger = utils.MetricLogger(delimiter="  ", sync=True)
-        # set model to eval
-        for key in self.model:
-            self.model[key].eval()
-        data_loader = test_data_loader
-
-        ## save some results ##
-        self.num_results2save = 0
-        self.id_results2save = 0
-        for step, batch in enumerate(data_loader):
-            if self.debug and step>= 2 and self.sub_model_name[0] != "IDLE":
-                break
-            # if self.debug and step>= 2:
-            #     break
-            if isinstance(batch, int):
-                batch = None
-
-            loss = self.test_one_step(batch)
-            metric_logger.update(**loss)
-
-        self.logger.info('  '.join(
-                [f'Epoch [{epoch + 1}](val stats)',
-                 "{meters}"]).format(
-                    meters=str(metric_logger)
-                 ))
-
-        return metric_logger
+        pass
     
 
     def eval_step(self, batch_data, step):
-        data_dict = self.data_preprocess(batch_data)
-        inp, tar = data_dict['inputs'], data_dict['data_samples']
-        ## first predict coarse prediction ##
-        coarse_prediction = self.model[list(self.model.keys())[0]](inp)
-        ## noise prediction ##
-        ## sample noise to add ##
-        noise = torch.randn_like(tar)
-        ## sample random timestep for each ##
-        bs = inp.shape[0]
-        timesteps = torch.randint(0, self.noise_scheduler.config.num_train_timesteps, (bs,), device=inp.device) 
-        noisy_tar = self.noise_scheduler.add_noise(tar, noise, timesteps)
-
-        ## predict the noise residual ##
-        noise_pred = self.model[list(self.model.keys())[1]](x=noisy_tar, timesteps=timesteps, cond=coarse_prediction)
-        
-        ## loss ##
-        loss_records = {}
-        MSE_loss = torch.mean((noise_pred - noise) ** 2).item()
-        loss_records.update({'MSE': MSE_loss})
-
-        ################### generate images ###################
-        ## sample image ##
-        refined_pred = self.denoise(template_data=tar, cond_data=coarse_prediction, bs=tar.shape[0])
-        ## evaluate other metrics ##
-        data_dict = {}
-        if self.metrics_type == 'SEVIRSkillScore':
-            data_dict['gt'] = tar
-            data_dict['pred'] = refined_pred
-            self.eval_metrics.update(target=data_dict['gt'], pred=data_dict['pred'])
-
-        ## save image ##
-        if self.visualizer_type == 'sevir_visualizer' and (step) % 1000 == 0:
-            self.visualizer.save_pixel_image(pred_image=refined_pred, target_img=tar, step=step)
-        else:
-            pass
-        
-        return loss_records
+        pass
     
     @torch.no_grad()
     def test_final(self, test_data_loader, predict_length):
-        self.test_data_loader = test_data_loader
-        metric_logger = utils.MetricLogger(delimiter="  ", sync=True)
-        # set model to eval
-        for key in self.model:
-            self.model[key].eval()
-
-        if utils.get_world_size() > 1:
-            rank = mpu.get_data_parallel_rank()
-            world_size = mpu.get_data_parallel_world_size()
-        else:
-            rank = 0
-            world_size = 1
-
-        if test_data_loader is not None:
-            data_loader = test_data_loader
-        else:
-            raise ValueError("test_data_loader is None")
-
-        from megatron_utils.tensor_parallel.data import get_data_loader_length
-        total_step = get_data_loader_length(test_data_loader)
-
-        for step, batch in enumerate(data_loader):
-            if isinstance(batch, int):
-                batch = None
-            losses = self.eval_step(batch_data=batch, step=step)
-            metric_logger.update(**losses)
-
-            self.logger.info("#"*80)
-            self.logger.info(step)
-            if step % 10 == 0 or step == total_step-1:
-                self.logger.info('  '.join(
-                [f'Step [{step + 1}](val stats)',
-                 "{meters}"]).format(
-                    meters=str(metric_logger)
-                 ))
-        #############################################################################
-        metrics = self.eval_metrics.compute()
-        csi_total = 0
-        for i, thr in enumerate(self.eval_metrics.threshold_list):
-            losses.update({f'CSI_{thr}': metrics[thr
-            ]['csi']})
-            csi_total += metrics[thr]['csi']
-        losses.update({'CSI_m': csi_total / len(self.eval_metrics.threshold_list)})
-        metric_logger.update(**losses)
-        self.logger.info('final results: {meters}'.format(meters=str(metric_logger)))
-        return None
+        pass

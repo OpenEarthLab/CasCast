@@ -60,21 +60,7 @@ def subprocess_fn(args):
         model_checkpoint = os.path.join(args.relative_checkpoint_dir, 'checkpoint_latest.pth')
     else:
         model_checkpoint = os.path.join(args.run_dir, 'checkpoint_latest.pth')
-    if args.resume:
-        # model_checkpoint = 'pafno1f_posMapMul/world_size8-ps4-posMapMul/checkpoint_best.pth'
-        resume_checkpoint = args.resume_checkpoint
-        model_checkpoint = resume_checkpoint
-        ### TODO: important: FOR DEBUG ###
-        logger.info("warning: continue finetuning do not load scheduler!!!!!!!!!!!!!!!!!")
-        model.load_checkpoint(model_checkpoint, resume=True, load_scheduler=False)
 
-    ## lora model ##
-    lora = args.cfg_params['model']['params']['extra_params'].get('lora', False)
-    if lora:
-        from networks.loralib.utils import mark_only_lora_as_trainable
-        for key in model.model:
-            if key.endswith("lora"):
-                mark_only_lora_as_trainable(model.model[key])
 
     model_without_ddp = utils.DistributedParallel_Model(model, args.local_rank)
 
@@ -87,19 +73,8 @@ def subprocess_fn(args):
         cnt_params = sum([p.numel() for p in params])
         logger.info("params {key}: {cnt_params}".format(key=key, cnt_params=cnt_params))
             
-    # for key in model_without_ddp.model:
-    #     params = [p for p in model_without_ddp.model[key].parameters() if p.requires_grad]
-    #     names = [n for n, p in model_without_ddp.model[key].named_parameters() if p.requires_grad]
-    #     cnt_params = sum([p.numel() for p in params])
-    #     logger.info("params {key}: {cnt_params}".format(key=key, cnt_params=cnt_params))
-    #     print(names)
-
-
-    # valid_dataloader = builder.get_dataloader(split = 'valid')
-    # logger.info('valid dataloaders build complete')
     logger.info('begin training ...')
 
-    # model_without_ddp.stat()
     model_without_ddp.trainer(train_dataloader, valid_dataloader, builder.get_max_epoch(), builder.get_max_step(), checkpoint_savedir=args.relative_checkpoint_dir if model_without_ddp.use_ceph else args.run_dir, resume=args.resume)
 
     

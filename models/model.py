@@ -1,27 +1,5 @@
 import torch
 import torch.nn as nn
-from networks.ConvGRU import ConvGRU
-from networks.PredRNN import PredRNN
-from networks.e3d_lstm import E3DLSTM
-from networks.MIM import MIM
-from networks.earthformer import EarthFormer
-from networks.SimVP import SimVP
-from networks.TAU import TAU
-from networks.ConvLSTM import ConvLSTM
-from networks.phydnet import PhyDNet
-from networks.persistent import persistent
-from networks.earthformer_xy import EarthFormer_xy
-from networks.llama import llama_custom
-from networks.ViT import ViT
-from networks.nowcast_discriminator import Temporal_Discriminator
-from networks.nowcast_generator import Nowcast_Generator
-from networks.MCVD import MCVD
-from networks.unet2d import Unet2d
-from networks.autoencoder_kl import autoencoder_kl
-from networks.lpipsWithDisc import lpipsWithDisc
-from networks.vq_gan import vq_gan
-from networks.vqgan_lpips import vqgan_LPIPS
-from networks.unet2d_cond import Unet2d_cond
 
 # from networks.PVFlash import BidirectionalTransformer
 from utils.builder import get_optimizer, get_lr_scheduler
@@ -97,113 +75,18 @@ class basemodel(nn.Module):
         ## build network ##
         sub_model = params.get('sub_model', {})
         for key in sub_model:
-            if key == "ConvGRU":
-                self.model[key] = ConvGRU(**sub_model["ConvGRU"])
-            elif key == 'PredRNN':
-                self.model[key] = PredRNN(**sub_model['PredRNN'])
-            elif key == 'E3DLSTM':
-                self.model[key] = E3DLSTM(**sub_model['E3DLSTM'])
-            elif key == 'MIM':
-                self.model[key] = MIM(**sub_model['MIM'])
-            elif key == 'EarthFormer':
-                self.model[key] = EarthFormer(sub_model['EarthFormer'])
-            elif key == 'SimVP':
-                self.model[key] = SimVP(**sub_model['SimVP'])
-            elif key == 'TAU':
-                self.model[key] = TAU(**sub_model['TAU'])
-            elif key == 'ConvLSTM':
-                self.model[key] = ConvLSTM(**sub_model['ConvLSTM'])
-            elif key == 'PhyDNet':
-                self.model[key] = PhyDNet(**sub_model['PhyDNet'])
-            elif key == 'persistent':
-                self.model[key] = persistent(**sub_model['persistent'])
-            elif key == 'EarthFormer_xy':
+            if key == 'EarthFormer_xy':
+                from networks.earthformer_xy import EarthFormer_xy
                 self.model[key] = EarthFormer_xy(**sub_model['EarthFormer_xy'])
-            elif key == 'llama':
-                self.model[key] = llama_custom(**sub_model['llama'])
-            elif key == 'vit':
-                self.model[key] = ViT(**sub_model['vit'])
-            elif key == 'nowcast_generator':
-                self.model[key] = Nowcast_Generator(sub_model['nowcast_generator'])
-            elif key == 'nowcast_discriminator':
-                self.model[key] = Temporal_Discriminator(**sub_model['nowcast_discriminator'])
-            elif key == 'mcvd':
-                self.model[key] = MCVD(sub_model['mcvd'])
-            elif key == 'unet2d':
-                self.model[key] = Unet2d(config=sub_model['unet2d'])
             elif key == 'autoencoder_kl':
+                from networks.autoencoder_kl import autoencoder_kl
                 self.model[key] = autoencoder_kl(config=sub_model['autoencoder_kl'])
             elif key == 'lpipsWithDisc':
+                from networks.lpipsWithDisc import lpipsWithDisc
                 self.model[key] = lpipsWithDisc(config=sub_model['lpipsWithDisc'])
-            elif key == 'vq_gan':
-                self.model[key] = vq_gan(config=sub_model['vq_gan'])
-            elif key == 'vqgan_LPIPS':
-                self.model[key] = vqgan_LPIPS(config=sub_model['vqgan_LPIPS'])
-            elif key == 'unet2d_cond':
-                self.model[key] = Unet2d_cond(config=sub_model['unet2d_cond'])
-            elif key == 'DiT':
-                from networks.DiT import DiT
-                self.model[key] = DiT(**sub_model['DiT'])
-            elif key == 'DiT_flash':
-                from networks.DiT_flash import DiT_flash
-                self.model[key] = DiT_flash(**sub_model['DiT_flash'])
-            elif key == 'videogpt_vqvae':
-                from networks.videogpt_vqvae import videogpt_vqvae
-                self.model[key] = videogpt_vqvae(config=sub_model['videogpt_vqvae'])
-            elif key == 'autoencoder_3d':
-                from networks.autoencoder_3d import autoencoder_3d
-                self.model[key] = autoencoder_3d(config=sub_model['autoencoder_3d'])
-            elif key == 'UViT':
-                from networks.UViT import UViT
-                self.model[key] = UViT(**sub_model['UViT'])
-            elif key == 'DiT_cross':
-                from networks.DiT_cross import DiT_cross
-                self.model[key] = DiT_cross(**sub_model['DiT_cross'])
-            elif key == 'DiT_lora':
-                from networks.DiT_lora import DiT_lora
-                self.model[key] = DiT_lora(**sub_model['DiT_lora'])
-            elif key == 'DiT_agent_cross':
-                from networks.DiT_agent_cross import DiT_agent_cross
-                self.model[key] = DiT_agent_cross(**sub_model['DiT_agent_cross'])
-            elif key == 'DiT_window':
-                from networks.DiT_window import DiT_window
-                self.model[key] = DiT_window(**sub_model['DiT_window'])
-            elif key == 'DiT_split':
-                from networks.DiT_split import DiT_split
-                self.model[key] = DiT_split(**sub_model['DiT_split'])
-            elif key == 'latentCast_diff':
-                from networks.latentCast_diff import latentCast_diff
-                self.model[key] = latentCast_diff(**sub_model['latentCast_diff'])
-            elif key == 'latentCast_diff_test':
-                from networks.latentCast_diff_test import latentCast_diff_test
-                self.model[key] = latentCast_diff_test(**sub_model['latentCast_diff_test'])
-            elif key == 'latentCast_diff_test1':
-                from networks.latentCast_diff_test1 import latentCast_diff_test1
-                self.model[key] = latentCast_diff_test1(**sub_model['latentCast_diff_test1'])
-            elif key == 'latentCast_diff_test2':
-                from networks.latentCast_diff_test2 import latentCast_diff_test2
-                self.model[key] = latentCast_diff_test2(**sub_model['latentCast_diff_test2'])
-            elif key == 'latentCast_diff_test3':
-                from networks.latentCast_diff_test3 import latentCast_diff_test3
-                self.model[key] = latentCast_diff_test3(**sub_model['latentCast_diff_test3'])
-            elif key == 'prediffNet':
-                from networks.prediffNet import prediffNet
-                self.model[key] = prediffNet(config=sub_model['prediffNet'])
-            elif key == 'dgmr_generator':
-                from networks.dgmr_generator import DGMRGenerator
-                self.model[key] = DGMRGenerator(config=sub_model['dgmr_generator'])
-            elif key == 'dgmr_discriminator':
-                from networks.dgmr_discriminator import DGMRDiscriminators
-                self.model[key] = DGMRDiscriminators(config=sub_model['dgmr_discriminator'])
-            elif key == 'DiT_framewise':
-                from networks.DiT_framewise import DiT_framewise
-                self.model[key] = DiT_framewise(**sub_model['DiT_framewise'])
-            elif key == 'DiT_pred':
-                from networks.DiT_pred import DiT_pred
-                self.model[key] = DiT_pred(**sub_model['DiT_pred'])
-            elif key == 'latentCast_diff_sequence':
-                from networks.latentCast_diff_sequence import latentCast_diff_sequence
-                self.model[key] = latentCast_diff_sequence(**sub_model['latentCast_diff_sequence'])
+            elif key == 'casformer':
+                from networks.casformer import CasFormer
+                self.model[key] = CasFormer(**sub_model['casformer'])
             else:
                 raise NotImplementedError('Invalid model type.')
             self.sub_model_name.append(key)
@@ -226,63 +109,24 @@ class basemodel(nn.Module):
         eval_metrics_list = params.get('metrics_list', [])
         self.eval_metrics_list = eval_metrics_list
         eval_metrics_vars = params.get('metrics_vars', None)
-        if self.metrics_type == 'hko7':
-            from utils.metrics import HKO7_MetricsRecorder
-            self.eval_metrics = HKO7_MetricsRecorder()
-        elif self.metrics_type == 'hko7_official':
-            from utils.metrics import HKOEvaluation_official
-            seq_len = params.get("hko7_seq_len", 1)
-            self.eval_metrics = HKOEvaluation_official(layout='NTCHW', seq_len=10, dist_eval=True if is_dist_avail_and_initialized() else False)
-        elif self.metrics_type == 'SEVIRSkillScore':
+        if self.metrics_type == 'SEVIRSkillScore':
             from utils.metrics import SEVIRSkillScore
             seq_len = params.get("sevir_seq_len", 12)
             self.eval_metrics = SEVIRSkillScore(layout='NTCHW', seq_len=seq_len, dist_eval=True if is_dist_avail_and_initialized() else False)
-        elif self.metrics_type == 'METEONETScore':
-            from utils.metrics import SEVIRSkillScore
-            seq_len = params.get('meteonet_seq_len', 12)
-            self.eval_metrics = SEVIRSkillScore(layout='NTCHW', seq_len=seq_len,
-                                                threshold_list=[19, 28, 35, 40, 47], preprocess_type='meteonet', 
-                                                dist_eval=True if is_dist_avail_and_initialized() else False)
+        elif self.metrics_type == 'None':
+            self.eval_metrics = None
         else:
-            if eval_metrics_vars is not None:
-                from utils.metrics import MulVar_MetricsRecorder
-                self.eval_metrics = MulVar_MetricsRecorder(eval_metrics_list, eval_metrics_vars=eval_metrics_vars)
-            else:
-                if len(eval_metrics_list) > 0:
-                    self.eval_metrics = MetricsRecorder(eval_metrics_list)
-                else:
-                    self.eval_metrics = None
-        
-        # ## build wandb recorder ##
-        # wandb_config = self.params.get("wandb", None)
-        # if wandb_config is not None:
-        #     project_name = wandb_config.get("project_name", None)
-        #     if (utils.get_world_size() > 1 and mpu.get_data_parallel_rank() == 0) or utils.get_world_size() == 1:
-        #         wandb.login(key='1315333ffbe8b6f586f7006b43e7555e2c3e8f75')
-        #         wandb.init(
-        #             project=project_name,
-        #             config={
-        #                 'model_name': key
-        #             },
-        #             name=params.get('run_dir', None)
-        #         )
+            raise NotImplementedError
 
         ## build visualizer ##
         self.visualizer_params = params.get("visualizer", {})
         self.visualizer_type = self.visualizer_params.get("visualizer_type", None)
         self.visualizer_step = self.visualizer_params.get("visualizer_step", 100)
-        if self.visualizer_type is None:
-            from utils.visualizer import non_visualizer
-            self.visualizer = non_visualizer()
-        elif self.visualizer_type == 'hko7_visualizer':
-            from utils.visualizer import hko7_visualizer 
-            self.visualizer = hko7_visualizer(exp_dir=self.run_dir)
-        elif self.visualizer_type == 'sevir_visualizer':
+        if self.visualizer_type == 'sevir_visualizer':
             from utils.visualizer import sevir_visualizer
             self.visualizer = sevir_visualizer(exp_dir=self.run_dir)
-        elif self.visualizer_type == 'meteonet_visualizer':
-            from utils.visualizer import meteonet_visualizer
-            self.visualizer = meteonet_visualizer(exp_dir=self.run_dir)
+        else:
+            raise NotImplementedError
 
 
         for key in self.model:
@@ -293,74 +137,25 @@ class basemodel(nn.Module):
             self.logger.info("finetune checkpoint path not exist")
         else:
             self.load_checkpoint(self.checkpoint_path, load_model=True, load_optimizer=False, load_scheduler=False, load_epoch=False, load_metric_best=False)
-            ## gjc: finetuning for SWA ##
-            # self.load_checkpoint(self.checkpoint_path, load_model=True, load_optimizer=False, load_scheduler=False, load_epoch=False, load_metric_best=True)
         
-        
-        
-        if self.loss_type == "LpLoss":
-            self.loss = self.LpLoss
-        elif self.loss_type == "Possloss":
-            self.loss = self.Possloss
-        elif self.loss_type == "MAELoss":
-            self.loss = self.MAELoss
-        elif self.loss_type == "MSELoss":
+        if self.loss_type == "MSELoss":
             self.loss = self.MSELoss
-        elif self.loss_type == "StdLoss":
-            self.loss = self.StdLoss
-        elif self.loss_type == "signLoss":
-            self.loss = self.signLoss
-        elif self.loss_type == "Weight_diff_Loss":
-            self.loss = self.Weight_diff_Loss
-        elif self.loss_type == "HuberLoss":
-            self.loss = self.HuberLoss
-        elif self.loss_type == "balance_mse":
-            self.loss = self.BalanceMSELoss
-            self.history_window = self.extra_params.get("history_window", None)
-            self.balance_channels = self.extra_params.get("balance_channels", None)
-            self.history_loss = torch.ones((self.history_window, self.balance_channels))*5
-        elif self.loss_type == "var_adaptive_loss":
-            self.loss = self.VarAdaLoss
-        elif self.loss_type == "task_wise_mse":
-            self.loss = self.task_wise_mse
-        elif self.loss_type == "position_wise_loss":
-            self.loss = self.position_wise_loss
-        elif self.loss_type == "task_position_wise_loss":
-            self.loss = self.task_position_wise_loss
         else: 
             raise NotImplementedError()
         
-        
-
     def to(self, device):
         self.device = device
         for key in self.model:
             self.model[key].to(device, dtype=self.data_type)
-            ## dgl graph to device
-            # if hasattr(self.model[key].net, 'g'):
-            #     self.model[key].net.g = self.model[key].net.g.to(device)
+
         for key in self.optimizer:
             for state in self.optimizer[key].state.values():
                 for k, v in state.items():
                     if isinstance(v, torch.Tensor):
                         state[k] = v.to(device, dtype=self.data_type)
-        # if hasattr(self, 'max_logvar') and self.max_logvar is not None:
-        #     self.max_logvar = self.max_logvar.to(device)
-        #     # self.max_logvar.requires_grad=True
-        # if hasattr(self, 'min_logvar') and self.min_logvar is not None:
-        #     self.min_logvar = self.min_logvar.to(device)
-            # self.min_logvar.requires_grad=True
-        
-
-    
-    def MAELoss(self, pred, target, **kwargs):
-        return torch.abs(pred-target).mean()
 
     def MSELoss(self, pred, target, **kwargs):
         return torch.mean((pred-target)**2)
-
-
-
 
     def train_one_step(self, batch_data, step):
         input, target = self.data_preprocess(batch_data)
@@ -378,9 +173,6 @@ class basemodel(nn.Module):
             raise NotImplementedError('Invalid model type.')
         
         return loss
-
-    def multi_step_predict(self, batch_data, clim_time_mean_daily, data_std, index, batch_len):
-        pass
 
     
     def test_one_step(self, batch_data):
@@ -417,16 +209,13 @@ class basemodel(nn.Module):
 
         data_loader = train_data_loader
         self.train_data_loader = train_data_loader
-        ## save some results ##
-        self.num_results2save = 3
-        self.id_results2save = 0
         for step, batch in enumerate(data_loader):
             ## step lr ##
             for key in self.lr_scheduler:
                 if self.lr_scheduler_by_step[key]:
                     self.lr_scheduler[key].step(epoch*max_step+step)
 
-            if (self.debug and step >=2) or self.sub_model_name[0] == "IDLE":
+            if (self.debug and step >=2):
                 self.logger.info("debug mode: break from train loop")
                 break
             if isinstance(batch, int):
@@ -438,9 +227,6 @@ class basemodel(nn.Module):
                 print(f'data_time: {str(data_time)}')
 
             loss = self.train_one_step(batch, step)
-
-            # if step < self.num_results2save and (not torch.distributed.is_initialized() or mpu.get_tensor_model_parallel_rank() == 0): 
-            #     self.visualize_one_step(batch, epoch, step)
 
             # record loss and time
             metric_logger.update(**loss)
@@ -477,13 +263,16 @@ class basemodel(nn.Module):
         if utils.get_world_size() > 1 and mpu.get_tensor_model_parallel_world_size() > 1:
             path1, path2 = checkpoint_path.split('.')
             checkpoint_path = f"{path1}_{mpu.get_tensor_model_parallel_rank()}{path2}"
-        
+
         if self.use_ceph:
             checkpoint_dict = self.checkpoint_ceph.load_checkpoint(checkpoint_path)
             if checkpoint_dict is None:
                 self.logger.info("checkpoint is not exist")
                 return
         elif os.path.exists(checkpoint_path):
+            if checkpoint_path is None or checkpoint_path=='None':
+                self.logger.info("checkpoint is not exist")
+                return
             checkpoint_dict = torch.load(checkpoint_path, map_location=torch.device('cpu'))
         else:
             self.logger.info("checkpoint is not exist")
@@ -785,69 +574,7 @@ class basemodel(nn.Module):
 
     @torch.no_grad()
     def test_final(self, test_data_loader, predict_length):
-        self.test_data_loader = test_data_loader
-        metric_logger = utils.MetricLogger(delimiter="  ", sync=True)
-        # set model to eval
-        for key in self.model:
-            self.model[key].eval()
-
-        if utils.get_world_size() > 1:
-            rank = mpu.get_data_parallel_rank()
-            world_size = mpu.get_data_parallel_world_size()
-        else:
-            rank = 0
-            world_size = 1
-        
-        # if torch.distributed.is_initialized() and mpu.get_tensor_model_parallel_world_size() > 1:
-        #     if test_data_loader is not None:
-        #         data_set_total_size = test_data_loader.sampler.total_size
-        #     else:
-        #         data_set_total_size = None
-        #     data_set_total_size_output = broadcast_data(['data_set_total_size'], {'data_set_total_size': data_set_total_size}, torch.int64)
-        #     data_set_total_size = data_set_total_size_output['data_set_total_size']
-        # else:
-        #     data_set_total_size = test_data_loader.sampler.total_size
-
-
-        # base_index = rank * data_set_total_size // world_size
-        total_step = get_data_loader_length(test_data_loader)
-
-        if test_data_loader is not None:
-            data_loader = test_data_loader
-        else:
-            raise ValueError("test_data_loader is None")
-
-        ## save some results ##
-        self.num_results2save = 5
-        self.id_results2save = 0
-        for step, batch in enumerate(data_loader):
-            # import pdb; pdb.set_trace()
-            ## test as graph cast [18,0] [6,12]##
-            # if (step+base_index) % 2 == 1: ## for batchsize 1 test ##
-            #     self.logger.info(f"skip:{step+base_index}")
-            #     continue
-            if isinstance(batch, int):
-                batch = None
-            # batch_len = batch[0].shape[0]
-            # index += batch_len
-            # import pdb; pdb.set_trace()
-            losses = self.multi_step_predict(batch_data=batch, data_std={"node_std":node_std, "edge_std":edge_std}, 
-                                             step=step, predict_length=data_loader.dataset.sample_steps[-1], base_index=base_index)
-            for i in range(len(losses)):
-                metric_logger[i].update(**losses[i])
-            # index += batch_len
-
-            self.logger.info("#"*80)
-            self.logger.info(step)
-            if step % 10 == 0 or step == total_step-1:
-                for i in range(predict_length):
-                    self.logger.info('  '.join(
-                            [f'final valid {i}th step predict (val stats)',
-                            "{meters}"]).format(
-                                meters=str(metric_logger[i])
-                            ))
-
-        return None
+        pass
     
 
     

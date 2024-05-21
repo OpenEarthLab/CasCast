@@ -38,7 +38,7 @@ class autoencoder_kl_gan_model(basemodel):
     def train_one_step(self, batch_data, step):
         data_dict = self.data_preprocess(batch_data)
         inp, tar = data_dict['inputs'], data_dict['data_samples']
-        ## first: train encoder+decoder+logvar ##
+        ## first: encoder+decoder+logvar ##
         reconstruction, posterior = self.model[list(self.model.keys())[0]](sample=inp, sample_posterior=True, return_posterior=True, generator=None)
         aeloss, log_dict_ae = self.model[list(self.model.keys())[1]](inputs=tar, reconstructions=reconstruction, posteriors=posterior, 
                                                                   optimizer_idx=0, global_step=step, mask=None, last_layer=self.get_last_layer(), split='train')
@@ -47,29 +47,15 @@ class autoencoder_kl_gan_model(basemodel):
         aeloss.backward()
         self.optimizer[list(self.model.keys())[0]].step()
 
-        ## second: train the discriminator ##
+        ## second: the discriminator ##
         disloss, log_dict_disc = self.model[list(self.model.keys())[1]](tar, reconstruction, posterior, optimizer_idx=1, global_step=step,
                                             mask=None, last_layer=self.get_last_layer(), split="train")
         self.optimizer[list(self.model.keys())[1]].zero_grad()
         disloss.backward()
         self.optimizer[list(self.model.keys())[1]].step()
-
-
         
-        # if (utils.get_world_size() > 1 and mpu.get_data_parallel_rank() == 0) or utils.get_world_size() == 1:
-        #             wandb.log({f'train_discriminator_fake': disc_loss_dict['loss_disc_fake'].item(),
-        #                        f'train_discriminator_real': disc_loss_dict['loss_disc_real'].item(),
-        #                         f'train_generator_k_maxpool_loss': gen_loss_dict['K_MAX_pooling_loss'].item(),
-        #                         f'train_generator_adv_loss': gen_loss_dict['loss_gen'].item()})
-        
-        if self.visualizer_type is None:
-            pass
-        elif self.visualizer_type == 'hko7_visualizer' and (step) % self.visualizer_step==0:
-            self.visualizer.save_pixel_image(pred_image=reconstruction.unsqueeze(1), target_img=tar.unsqueeze(1), step=step)
-        elif self.visualizer_type == 'sevir_visualizer' and (step) % self.visualizer_step==0:
+        if self.visualizer_type == 'sevir_visualizer' and (step) % self.visualizer_step==0:
             self.visualizer.save_pixel_image(pred_image=reconstruction.unsqueeze(1), target_img=tar.unsqueeze(1), step=step) ## (k, b, t, c, h, w) -> (b, t, c, h, w)
-        elif self.visualizer_type == 'meteonet_visualizer' and (step) % self.visualizer_step==0:
-            self.visualizer.save_pixel_image(pred_image=reconstruction.unsqueeze(1), target_img=tar.unsqueeze(1), step=step)
         else:
             pass
         
@@ -87,12 +73,12 @@ class autoencoder_kl_gan_model(basemodel):
     def test_one_step(self, batch_data):
         data_dict = self.data_preprocess(batch_data)
         inp, tar = data_dict['inputs'], data_dict['data_samples']
-       ## first: train encoder+decoder+logvar ##
+        ## first: encoder+decoder+logvar ##
         reconstruction, posterior = self.model[list(self.model.keys())[0]](sample=inp, sample_posterior=True, return_posterior=True, generator=None)
         aeloss, log_dict_ae = self.model[list(self.model.keys())[1]](inputs=tar, reconstructions=reconstruction, posteriors=posterior, 
                                                                   optimizer_idx=0, global_step=0, mask=None, last_layer=self.get_last_layer(), split='val')
 
-        ## second: train the discriminator ##
+        ## second: the discriminator ##
         disloss, log_dict_disc = self.model[list(self.model.keys())[1]](tar, reconstruction, posterior, optimizer_idx=1, global_step=0,
                                             mask=None, last_layer=self.get_last_layer(), split="val")
 
@@ -118,16 +104,9 @@ class autoencoder_kl_gan_model(basemodel):
             self.model[key].eval()
         data_loader = test_data_loader
 
-        ## save some results ##
-        self.num_results2save = 0
-        self.id_results2save = 0
         for step, batch in enumerate(data_loader):
-            if self.debug and step>= 2 and self.sub_model_name[0] != "IDLE":
+            if self.debug and step>= 2:
                 break
-            # if self.debug and step>= 2:
-            #     break
-            if isinstance(batch, int):
-                batch = None
 
             loss = self.test_one_step(batch)
             metric_logger.update(**loss)
@@ -146,17 +125,9 @@ class autoencoder_kl_gan_model(basemodel):
         inp, tar = data_dict['inputs'], data_dict['data_samples']
         prediction = self.model[list(self.model.keys())[0]](inp)
 
-        ### the official hko7 evaluator receive input tensor shape: b, t, h, w ##
         losses = {}
         data_dict = {}
-        if self.metrics_type == 'hko7_official':
-            data_dict.update({'gt': tar.squeeze(2).cpu().numpy()})
-            data_dict.update({'pred': prediction.squeeze(2).cpu().numpy()})
-            self.eval_metrics.update(gt=data_dict['gt'], pred=data_dict['pred'], mask=self.eval_metrics._exclude_mask)
-            csi, mse, mae = self.eval_metrics.calculate_stat()
-            for i, thr in enumerate(self.eval_metrics._thresholds):
-                losses.update({f'CSI_{thr}': csi[:, i].mean()})
-        elif self.metrics_type == 'SEVIRSkillScore':
+        if self.metrics_type == 'SEVIRSkillScore':
             ## to pixel ##
             data_dict['gt'] = tar.squeeze(2) * 255
             data_dict['pred'] = prediction.squeeze(2) * 255
@@ -179,13 +150,6 @@ class autoencoder_kl_gan_model(basemodel):
         for key in self.model:
             self.model[key].eval()
 
-        if utils.get_world_size() > 1:
-            rank = mpu.get_data_parallel_rank()
-            world_size = mpu.get_data_parallel_world_size()
-        else:
-            rank = 0
-            world_size = 1
-
         if test_data_loader is not None:
             data_loader = test_data_loader
         else:
@@ -193,9 +157,6 @@ class autoencoder_kl_gan_model(basemodel):
 
         from megatron_utils.tensor_parallel.data import get_data_loader_length
         total_step = get_data_loader_length(test_data_loader)
-        ## save some results ##
-        self.num_results2save = 5
-        self.id_results2save = 0
         for step, batch in enumerate(data_loader):
             if isinstance(batch, int):
                 batch = None

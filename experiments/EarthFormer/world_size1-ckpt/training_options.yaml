@@ -1,0 +1,96 @@
+tensor_model_parallel_size: 1
+resume: false
+resume_from_config: false
+seed: 0
+cuda: 0
+world_size: 1
+per_cpus: 4
+local_rank: 0
+init_method: tcp://127.0.0.1:34182
+outdir: /mnt/lustre/gongjunchao/release_code/cascast/experiments/EarthFormer
+cfg: ./configs/sevir_used/EarthFormer.yaml
+desc: debug
+visual_vars: null
+debug: true
+resume_checkpoint: null
+resume_cfg_file: null
+rank: 0
+distributed: false
+relative_checkpoint_dir: EarthFormer/world_size1-debug
+sevir:
+  type: sevir
+  input_length: 13
+  pred_length: 12
+  total_length: 25
+  base_freq: 5min
+  data_dir: pixel_data/sevir #path/to/sevir 
+dataset:
+  train:
+    type: sevir
+    input_length: 13
+    pred_length: 12
+    total_length: 25
+    base_freq: 5min
+    data_dir: pixel_data/sevir #path/to/sevir 
+  valid:
+    type: sevir
+    input_length: 13
+    pred_length: 12
+    total_length: 25
+    base_freq: 5min
+    data_dir: pixel_data/sevir #path/to/sevir 
+sampler:
+  type: DistributedSampler
+dataloader:
+  num_workers: 8
+  pin_memory: false
+  prefetch_factor: 2
+  persistent_workers: true
+trainer:
+  batch_size: 8
+  valid_batch_size: 16
+  max_epoch: 1
+  max_step: 100000
+model:
+  type: non_ar_model
+  params:
+    sub_model:
+      EarthFormer_xy:
+        in_len: 13
+        out_len: 12
+        height: 384
+        width: 384
+    save_best: MSE
+    use_ceph: false
+    ceph_checkpoint_path: mpas:s3://sevir/checkpoint
+    metrics_type: SEVIRSkillScore
+    data_type: fp32
+    visualizer:
+      visualizer_type: sevir_visualizer
+      visualizer_step: 8000
+    optimizer:
+      EarthFormer_xy:
+        type: AdamW
+        params:
+          lr: 0.001
+          betas:
+          - 0.9
+          - 0.999
+          weight_decay: 1.0e-05
+    lr_scheduler:
+      EarthFormer_xy:
+        by_step: true
+        sched: cosine
+        epochs: 1
+        min_lr: 1.0e-05
+        warmup_lr: 1.0e-05
+        warmup_epochs: 0.1
+        lr_noise: null
+        cooldown_epochs: 0
+    extra_params:
+      loss_type: MSELoss
+      enabled_amp: false
+      log_step: 20
+      z_score_delta: false
+    wandb:
+      project_name: sevir

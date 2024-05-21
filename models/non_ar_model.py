@@ -34,30 +34,15 @@ class non_ar_model(basemodel):
     def train_one_step(self, batch_data, step):
         data_dict = self.data_preprocess(batch_data)
         inp, tar = data_dict['inputs'], data_dict['data_samples']
-        # with amp.autocast(enabled=self.enabled_amp):
         self.optimizer[list(self.model.keys())[0]].zero_grad()
         prediction = self.model[list(self.model.keys())[0]](inp)
         loss = self.loss(prediction, tar)
         loss.backward()
-        #self.gscaler.scale(loss).backward()
         self.optimizer[list(self.model.keys())[0]].step()
-        # self.gscaler.step(self.optimizer[list(self.model.keys())[0]])
-        # self.gscaler.update()
-        # if (utils.get_world_size() > 1 and mpu.get_data_parallel_rank() == 0) or utils.get_world_size() == 1:
-        #             wandb.log({f'train_{self.loss_type}': loss.item() })
         
         if self.visualizer_type is None:
             pass
-        elif self.visualizer_type == 'hko7_visualizer' and (step) % self.visualizer_step==0:
-            import pdb; pdb.set_trace() ## TODO
-            self.visualizer.save_dbz_image(pred_image=prediction, target_img=tar, step=step)
         elif self.visualizer_type == 'sevir_visualizer' and (step) % self.visualizer_step==0:
-            self.visualizer.save_pixel_image(pred_image=prediction, target_img=tar, step=step)
-            #############################################################################################################
-            # model_name = list(self.model.keys())[0]
-            # ceph_prefix = f'radar:s3://radar_visualization/sevir/{model_name}'
-            # self.visualizer.save_vil_last_image_and_npy(pred_image=prediction, target_img=tar, step=step, ceph_prefix=ceph_prefix)
-        elif self.visualizer_type == 'meteonet_visualizer' and (step) % self.visualizer_step==0:
             self.visualizer.save_pixel_image(pred_image=prediction, target_img=tar, step=step)
         else:
             pass
@@ -79,42 +64,13 @@ class non_ar_model(basemodel):
         loss = self.loss(prediction, tar)
 
         ## evaluation ##
-        if self.metrics_type == 'hko7_official':
-            import pdb; pdb.set_trace()
-            data_dict['gt'] = data_dict['gt'].squeeze(2).cpu().numpy()
-            data_dict['pred'] = data_dict['pred'].squeeze(2).cpu().numpy()
-            self.eval_metrics.update(gt=data_dict['gt'], pred=data_dict['pred'], mask=self.eval_metrics._exclude_mask)
-            csi, mse, mae = self.eval_metrics.calculate_stat()
-            for i, thr in enumerate(self.eval_metrics._thresholds):
-                loss_records.update({f'CSI_{thr}': csi[:, i].mean()})
-            loss_records.update({'MSE': MSE_loss})
-        elif self.metrics_type == 'SEVIRSkillScore':
-            data_dict['gt'] = data_dict['gt']
-            data_dict['pred'] = data_dict['pred']
-            self.eval_metrics.update(target=data_dict['gt'], pred=data_dict['pred'])
-            # metrics = self.eval_metrics.compute()
-            # for i, thr in enumerate(self.eval_metrics.threshold_list):
-            #     loss_records.update({f'CSI_{thr}': metrics[thr
-            #     ]['csi']})
-            #     csi_total += metrics[thr]['csi']
-            # loss_records.update({'CSI_m': csi_total / len(self.eval_metrics.threshold_list)})
-            # if math.isnan(loss_records['CSI_m']):
-            #     import pdb; pdb.set_trace()
-            loss_records.update({'MSE': MSE_loss})
-            # if (utils.get_world_size() > 1 and mpu.get_data_parallel_rank() == 0) or utils.get_world_size() == 1:
-            #     wandb.log({f'val_CSI_m': loss_records['CSI_m'] })
-        elif self.metrics_type == 'METEONETScore':
+        if self.metrics_type == 'SEVIRSkillScore':
             data_dict['gt'] = data_dict['gt']
             data_dict['pred'] = data_dict['pred']
             self.eval_metrics.update(target=data_dict['gt'], pred=data_dict['pred'])
             loss_records.update({'MSE': MSE_loss})
-        else:
-            metrics_loss = self.eval_metrics.evaluate_batch(data_dict)
-            loss_records.update(metrics_loss)
-        
-        ## log to wandb ##
-        # if (utils.get_world_size() > 1 and mpu.get_data_parallel_rank() == 0) or utils.get_world_size() == 1:
-        #     wandb.log({f'val_{self.loss_type}': loss.item() })
+        else: 
+            raise not NotImplementedError
 
         return loss_records
     
@@ -126,16 +82,9 @@ class non_ar_model(basemodel):
             self.model[key].eval()
         data_loader = test_data_loader
 
-        ## save some results ##
-        self.num_results2save = 0
-        self.id_results2save = 0
         for step, batch in enumerate(data_loader):
-            if self.debug and step>= 2 and self.sub_model_name[0] != "IDLE":
+            if self.debug and step>= 2:
                 break
-            # if self.debug and step>= 2:
-            #     break
-            if isinstance(batch, int):
-                batch = None
 
             loss = self.test_one_step(batch)
             metric_logger.update(**loss)
@@ -154,22 +103,6 @@ class non_ar_model(basemodel):
                     meters=str(metric_logger)
                  ))
 
-        # metrics_records = {}
-        # csi_total = 0
-        # metrics = self.eval_metrics.compute()
-        # for i, thr in enumerate(self.eval_metrics.threshold_list):
-        #     metrics_records.update({f'CSI_{thr}': metrics[thr
-        #     ]['csi']})
-        #     csi_total += metrics[thr]['csi']
-        # metrics_records.update({'CSI_m': csi_total / len(self.eval_metrics.threshold_list)})
-        # metric_logger.update(**metrics_records)
-        # self.eval_metrics.reset()
-        # self.logger.info('  '.join(
-        #         [f'Epoch [{epoch + 1}](val stats)',
-        #          "{meters}"]).format(
-        #             meters=str(metric_logger)
-        #          ))
-
         return metric_logger
     
 
@@ -180,7 +113,7 @@ class non_ar_model(basemodel):
 
         losses = {}
         data_dict = {}
-        if self.metrics_type == 'hko7_official':
+        if self.metrics_type == 'SEVIRSkillScore':
             data_dict['gt'] = tar
             data_dict['pred'] = prediction
             self.eval_metrics.update(target=data_dict['gt'], pred=data_dict['pred'])
@@ -190,51 +123,8 @@ class non_ar_model(basemodel):
             losses.update(sf_dict)
             losses.update(crps_dict)
             ############
-        elif self.metrics_type == 'SEVIRSkillScore':
-            data_dict['gt'] = tar
-            data_dict['pred'] = prediction
-            self.eval_metrics.update(target=data_dict['gt'], pred=data_dict['pred'])
-            ############
-            sf_dict = self.eval_metrics.get_single_frame_metrics(target=data_dict['gt'], pred=data_dict['pred'])
-            crps_dict = self.eval_metrics.get_crps(target=data_dict['gt'], pred=data_dict['pred'])
-            losses.update(sf_dict)
-            losses.update(crps_dict)
-            ############
-        elif self.metrics_type == 'METEONETScore':
-            data_dict['gt'] = tar
-            data_dict['pred'] = prediction
-            self.eval_metrics.update(target=data_dict['gt'], pred=data_dict['pred'])
-            ############
-            sf_dict = self.eval_metrics.get_single_frame_metrics(target=data_dict['gt'], pred=data_dict['pred'])
-            crps_dict = self.eval_metrics.get_crps(target=data_dict['gt'], pred=data_dict['pred'])
-            losses.update(sf_dict)
-            losses.update(crps_dict)
-            ############
-        ## save image ##
-        if self.visualizer_type == 'sevir_visualizer' and (step) % 1 == 0:
+        if self.visualizer_type == 'sevir_visualizer' and (step) % 1000 == 0:
             self.visualizer.save_pixel_image(pred_image=data_dict['pred'], target_img=data_dict['gt'], step=step)
-            #######################################################################################################
-            # model_name = list(self.model.keys())[0]
-            # ceph_prefix = f'radar:s3://radar_visualization/sevir/{model_name}_{self.visualizer.sub_dir}'
-            # self.visualizer.save_vil_last_image_and_npy(pred_image=data_dict['pred'], target_img=data_dict['gt'], step=step, ceph_prefix=ceph_prefix)
-        elif self.visualizer_type == 'hko7_visualizer' and (step) % 1 == 0:
-            # self.visualizer.save_pixel_image(pred_image=data_dict['pred'], target_img=data_dict['gt'], step=step)
-            #######################################################################################################
-            # model_name = list(self.model.keys())[0]
-            # ceph_prefix = f'radar:s3://radar_visualization/hko7/{model_name}_{self.visualizer.sub_dir}'
-            # self.visualizer.save_hko7_last_image_and_npy(pred_image=data_dict['pred'], target_img=data_dict['gt'], step=step, ceph_prefix=ceph_prefix)
-            ############################################### save gt ########################################################
-            ceph_prefix = f'radar:s3://radar_visualization/hko7/gt'
-            self.visualizer.save_hko7_last_image_and_npy(pred_image=data_dict['gt'], target_img=data_dict['gt'], step=step, ceph_prefix=ceph_prefix)
-        elif self.visualizer_type == 'meteonet_visualizer' and (step) % 1 == 0:
-            # self.visualizer.save_pixel_image(pred_image=data_dict['pred'], target_img=data_dict['gt'], step=step)
-            #######################################################################################################
-            # model_name = list(self.model.keys())[0]
-            # ceph_prefix = f'radar:s3://radar_visualization/meteonet/{model_name}_{self.visualizer.sub_dir}'
-            # self.visualizer.save_meteo_last_image_and_npy(pred_image=data_dict['pred'], target_img=data_dict['gt'], step=step, ceph_prefix=ceph_prefix)
-            ################################################ save gt #######################################################
-            ceph_prefix = f'radar:s3://radar_visualization/meteonet/gt'
-            self.visualizer.save_meteo_last_image_and_npy(pred_image=data_dict['gt'], target_img=data_dict['gt'], step=step, ceph_prefix=ceph_prefix)
         else:
             pass
 
@@ -249,13 +139,6 @@ class non_ar_model(basemodel):
         for key in self.model:
             self.model[key].eval()
 
-        if utils.get_world_size() > 1:
-            rank = mpu.get_data_parallel_rank()
-            world_size = mpu.get_data_parallel_world_size()
-        else:
-            rank = 0
-            world_size = 1
-
         if test_data_loader is not None:
             data_loader = test_data_loader
         else:
@@ -263,12 +146,8 @@ class non_ar_model(basemodel):
 
         from megatron_utils.tensor_parallel.data import get_data_loader_length
         total_step = get_data_loader_length(test_data_loader)
-        ## save some results ##
-        self.num_results2save = 5
-        self.id_results2save = 0
+
         for step, batch in enumerate(data_loader):
-            if isinstance(batch, int):
-                batch = None
             losses = self.eval_step(batch_data=batch, step=step)
             metric_logger.update(**losses)
 
@@ -281,27 +160,16 @@ class non_ar_model(basemodel):
                     meters=str(metric_logger)
                  ))
         ####################################################
-        # metrics = self.eval_metrics.compute()
-        # csi_total = 0
-        # for i, thr in enumerate(self.eval_metrics.threshold_list):
-        #     losses.update({f'CSI_{thr}': metrics[thr
-        #     ]['csi']})
-        #     csi_total += metrics[thr]['csi']
-        # losses.update({'CSI_m': csi_total / len(self.eval_metrics.threshold_list)})
         ####################################################
         ####################################################
         metrics = self.eval_metrics.compute()
         for thr, thr_dict in metrics.items():
             for k, v in thr_dict.items():
                 losses.update({f'{thr}-{k}': v})
-        # ###################################################
-        # ## directly print ##
-        # metric_logger.update(**losses)
-        # self.logger.info('final results: {meters}'.format(meters=str(metric_logger)))
+        ###################################################
+        ## directly print ##
+        metric_logger.update(**losses)
+        self.logger.info('final results: {meters}'.format(meters=str(metric_logger)))
         ##################################################
-        ## save as excel ##
-        import pandas as pd
-        df = pd.DataFrame.from_dict(losses)
-        df.to_excel(f'{self.visualizer.exp_dir}/{self.visualizer.sub_dir}_losses.xlsx')
         return None
     

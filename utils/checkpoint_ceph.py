@@ -48,16 +48,3 @@ class checkpoint_ceph(object):
             np.save(f, data)
             f.seek(0)
             self.client.put(url, f)
-
-        
-
-if __name__ == '__main__':
-    ceph = checkpoint_ceph()
-    data = {"test":10, 'a':9}
-    # url = f"{data_dir}/mean_std1111.npy"
-    url = f"weatherbench:s3://weatherbench/test/test.pth"
-    # url = 'weatherbench:s3://weatherbench/weatherbench32x64/test/test.npy'
-    ceph.save_checkpoint(url, data)
-    print(data)
-    read_data = ceph.load_checkpoint(url)
-    print(read_data)

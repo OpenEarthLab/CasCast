@@ -30,13 +30,12 @@ def subprocess_fn(args):
 
     if model.use_ceph:
         ### TODO: warning ###
-        # model_checkpoint = os.path.join(args.relative_checkpoint_dir, 'checkpoint_best.pth') 
-        model_checkpoint = os.path.join(args.relative_checkpoint_dir, 'checkpoint_latest.pth')
+        pass
     else:
         model_checkpoint = os.path.join(args.run_dir, 'checkpoint_best.pth')
     
     if not args.debug:
-        model.load_checkpoint(model_checkpoint)
+        model.load_checkpoint(model_checkpoint, load_optimizer=False, load_scheduler=False)
     model_without_ddp = utils.DistributedParallel_Model(model, args.local_rank)
 
     for key in model_without_ddp.model:
@@ -58,23 +57,11 @@ def subprocess_fn(args):
     # model_without_ddp.test(test_data_loader=test_dataloader, epoch=0)
     
     ### evaluation metric evaluator ###
-    if args.metrics_type == 'hko7':
-        raise NotImplementedError
-    elif args.metrics_type == 'hko7_official':
-        from utils.metrics import HKOEvaluation_official
-        model_without_ddp.eval_metrics = HKOEvaluation_official(layout='NTCHW', seq_len=args.pred_len, dist_eval=True if is_dist_avail_and_initialized() else False)
-        model_without_ddp.metrics_type = 'hko7_official'
-    elif args.metrics_type == 'SEVIRSkillScore':
+    if args.metrics_type == 'SEVIRSkillScore':
         from utils.metrics import SEVIRSkillScore
-        model_without_ddp.eval_metrics = SEVIRSkillScore(layout='NTCHW', seq_len=args.pred_len, mode='1',
+        model_without_ddp.eval_metrics = SEVIRSkillScore(layout='NTCHW', seq_len=args.pred_len, mode='0',
                                                          dist_eval=True if is_dist_avail_and_initialized() else False)
         model_without_ddp.metrics_type = 'SEVIRSkillScore'
-    elif args.metrics_type == 'METEONETScore':
-        from utils.metrics import SEVIRSkillScore
-        model_without_ddp.eval_metrics = SEVIRSkillScore(layout='NTCHW', seq_len=args.pred_len, 
-                                                         threshold_list=[19, 28, 35, 40, 47], preprocess_type='meteonet', 
-                                                dist_eval=True if is_dist_avail_and_initialized() else False)
-        model_without_ddp.metrics_type = 'METEONETScore'
     else:
         raise NotImplementedError
     
@@ -82,16 +69,14 @@ def subprocess_fn(args):
     if model_without_ddp.visualizer_type == 'sevir_visualizer':
         from utils.visualizer import sevir_visualizer
         model_without_ddp.visualizer = sevir_visualizer(exp_dir=args.run_dir, sub_dir=f'{args.test_name}_vis')
-    elif model_without_ddp.visualizer_type == 'hko7_visualizer':
-        from utils.visualizer import hko7_visualizer
-        model_without_ddp.visualizer = hko7_visualizer(exp_dir=args.run_dir, sub_dir=f'{args.test_name}_vis')
-    elif model_without_ddp.visualizer_type == 'meteonet_visualizer':
-            from utils.visualizer import meteonet_visualizer
-            model_without_ddp.visualizer = meteonet_visualizer(exp_dir=args.run_dir, sub_dir=f'{args.test_name}_vis')
     else:
         raise NotImplementedError
-    # if args.test_save_steps > 0 :
-    #     model_without_ddp.checkpoint_savedir = os.path.join(args.relative_checkpoint_dir, args.start_timestamp)
+
+    ## set ensemble member ##
+    model_without_ddp.ens_member = args.ens_member
+    ## set the classifier free guidance weight ###
+    model_without_ddp.cfg_weight = args.cfg_weight
+
     model_without_ddp.test_final(test_dataloader, args.pred_len)
 
 def main(args):
@@ -153,6 +138,9 @@ if __name__ == "__main__":
     parser.add_argument('--test_name',    type = str,     default='test',                                         help = 'test name')
     # debug mode for quick debug #
     parser.add_argument('--debug', action='store_true', help='debug or not')
+    ## configs for diffusion test ##
+    parser.add_argument('--ens_member', type=int, default=1, help='ensemble members')
+    parser.add_argument('--cfg_weight', type=float, default=1.01, help='classifier free guidance weight')
 
     args = parser.parse_args()
 

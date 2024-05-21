@@ -75,119 +75,26 @@ class ConfigBuilder(object):
         
         A model, which is usually a torch.nn.Module object.
         """
-        from models.Iter_model import Iter_model
-        from models.Iter_delta_model import Iter_delta_model
-        from models.dec_model import dec_model
-        from models.enc_dec_model import enc_dec_model
-        from models.non_ar_model import non_ar_model
-        from models.phydnet_model import phydnet_model
-        from models.nowcast_gan_model import nowcast_gan_model
-        from models.mcvd_diffusion_model import mcvd_diffusion_model
-        from models.mcvd_diffusion_scaleNoise_model import mcvd_diffusion_scaleNoise_model
-        from models.mcvd_diffusion_scaleImg_model import mcvd_diffusion_scaleImg_model
-        from models.mcvd_diffusion_selfNorm_model import mcvd_diffusion_selfNorm_model
-        from models.mcvd_diffusion_staticNorm_model import mcvd_diffusion_staticNorm_model
-        from models.mcvd_diffusion_clamp_model import mcvd_diffusion_clamp_model
-        from models.autoencoder_kl_gan_model import autoencoder_kl_gan_model
-        from models.ldm_diffusion_model import ldm_diffusion_model
-        from models.mcvd_diffusion_single_frame_model import mcvd_diffusion_single_frame_model
-        from models.mcvd_diffusion_single_frame_downsample_model import mcvd_diffusion_single_frame_downsample_model
-        from models.vqgan_model import vqgan_model
-        from models.ldm_cond_diffusion_model import ldm_cond_diffusion_model
+
         if model_params is None:
             model_params = self.model_params
         type = model_params.get('type', 'VQGAN')
         params = model_params.get('params', {})
-        if type == 'Iter_model':
-            model = Iter_model(self.logger, **params)
-        elif type == 'dec_model':
-            model = dec_model(self.logger, **params)
-        elif type == 'enc_dec_model':
-            model = enc_dec_model(self.logger, **params)
-        elif type == 'non_ar_model':
+        if type == 'non_ar_model':
+            from models.non_ar_model import non_ar_model
             model = non_ar_model(self.logger, **params)
-        elif type == 'phydnet_model':
-            model = phydnet_model(self.logger, **params)
-        elif type == 'nowcast_gan_model':
-            model = nowcast_gan_model(self.logger, **params)
-        elif type == 'mcvd_diffusion_model':
-            model = mcvd_diffusion_model(self.logger, **params)
-        elif type == 'mcvd_diffusion_scaleNoise_model':
-            model = mcvd_diffusion_scaleNoise_model(self.logger, **params)
-        elif type == 'mcvd_diffusion_scaleImg_model':
-            model = mcvd_diffusion_scaleImg_model(self.logger, **params)
-        elif type == 'mcvd_diffusion_selfNorm_model':
-            model = mcvd_diffusion_selfNorm_model(self.logger, **params)
-        elif type == 'mcvd_diffusion_staticNorm_model':
-            model = mcvd_diffusion_staticNorm_model(self.logger, **params)
-        elif type == 'mcvd_diffusion_clamp_model':
-            model = mcvd_diffusion_clamp_model(self.logger, **params)
         elif type == 'autoencoder_kl_gan_model':
+            from models.autoencoder_kl_gan_model import autoencoder_kl_gan_model
             model = autoencoder_kl_gan_model(self.logger, **params)
-        elif type == 'ldm_diffusion_model':
-            model = ldm_diffusion_model(self.logger, **params)
-        elif type == 'mcvd_diffusion_single_frame_model':
-            model = mcvd_diffusion_single_frame_model(self.logger, **params)
-        elif type == 'mcvd_diffusion_single_frame_downsample_model':
-            model = mcvd_diffusion_single_frame_downsample_model(self.logger, **params)
-        elif type == 'vqgan_model':
-            model = vqgan_model(self.logger, **params)
-        elif type == 'ldm_cond_diffusion_model':
-            model = ldm_cond_diffusion_model(self.logger, **params)
-        elif type == 'ldm_cond_classifier_free_diffusion_model':
-            from models.ldm_cond_classifier_freee_diffusion_model import ldm_cond_classifier_free_diffusion_model
-            model = ldm_cond_classifier_free_diffusion_model(self.logger, **params)
-        elif type == 'ldm_cond_diffusion_timeclip_model':
-            from models.ldm_cond_diffusion_timeclip_model import ldm_cond_diffusion_timeclip_model
-            model = ldm_cond_diffusion_timeclip_model(self.logger, **params)
-        elif type == 'latent_preprocess_model':
-            from models.latent_preprocess_model import latent_preprocess_model
-            model = latent_preprocess_model(self.logger, **params)
-        elif type =='latent_diffusion_model':
-            from models.latent_diffusion_model import latent_diffusion_model
-            model = latent_diffusion_model(self.logger, **params)
-        elif type == 'videogpt_vqvae_model':
-            from models.videogpt_vqvae_model import videogpt_vqvae_model
-            model = videogpt_vqvae_model(self.logger, **params)
-        elif type == 'autoencoder_3d_model':
-            from models.autoencoder_3d_model import autoencoder_3d_model
-            model = autoencoder_3d_model(self.logger, **params)
-        elif type == 'latent_diffusion_cond_model':
-            from models.latent_diffusion_cond_model import latent_diffusion_cond_model
-            model = latent_diffusion_cond_model(self.logger, **params)
-        elif type == 'latent_diffusion_lora_model':
-            from models.latent_diffusion_lora_model import latent_diffusion_lora_model
-            model = latent_diffusion_lora_model(self.logger, **params)
-        elif type == 'latent_2d_diffusion_model':
-            from models.latent_2d_diffusion_model import latent_2d_diffusion_model
-            model = latent_2d_diffusion_model(self.logger, **params)
         elif type == 'latent_compress_model':
             from models.latent_compress_model import latent_compress_model
             model = latent_compress_model(self.logger, **params)
-        elif type == 'latent_compare_model':
-            from models.latent_compare_model import latent_compare_model
-            model = latent_compare_model(self.logger, **params)
-        elif type == 'latent_nonar_pred_model':
-            from models.latent_nonar_pred_model import latent_nonar_pred_model
-            model = latent_nonar_pred_model(self.logger, **params)
-        elif type == 'latent_diffusion_pred_model':
-            from models.latent_diffusion_pred_model import latent_diffusion_pred_model
-            model = latent_diffusion_pred_model(self.logger, **params)
-        elif type == 'latent_diffusion_direct_pred_model':
-            from models.latent_diffusion_direct_pred_model import latent_diffusion_direct_pred_model
-            model = latent_diffusion_direct_pred_model(self.logger, **params)
-        elif type == 'dgmr_gan_model':
-            from models.dgmr_gan_model import dgmr_gan_model
-            model = dgmr_gan_model(self.logger, **params)
-        elif type == 'autoencoder_kl_gan_128_model':
-            from models.autoencoder_kl_gan_128_model import autoencoder_kl_gan_128_model
-            model = autoencoder_kl_gan_128_model(self.logger, **params)
-        elif type == 'latent_diffusion_direct_pred_128_model':
-            from models.latent_diffusion_direct_pred_128_model import latent_diffusion_direct_pred_128_model
-            model = latent_diffusion_direct_pred_128_model(self.logger, **params)
-        elif type == 'latent_diffusion_joint_model':
-            from models.latent_diffusion_joint_model import latent_diffusion_joint_model
-            model = latent_diffusion_joint_model(self.logger, **params)
+        elif type == 'latent_diffusion_model':
+            from models.latent_diffusion_model import latent_diffusion_model
+            model = latent_diffusion_model(self.logger, **params)
+        elif type == 'latent_diffusion_model_eval':
+            from models.latent_diffusion_model_eval import latent_diffusion_model_eval
+            model = latent_diffusion_model_eval(self.logger, **params)
         else:
             raise NotImplementedError('Invalid model type.')
         return model
@@ -210,11 +117,6 @@ class ConfigBuilder(object):
         
         A torch.utils.data.Dataset item.
         """
-        from datasets.hko7 import data_hko
-        from datasets.hko7_mp import data_hko_mp
-        from datasets.sevir import get_sevir_dataset
-        from datasets.sevir_pretrain import sevir_pretrain
-        from datasets.sevir_field_cond import get_sevir_field_cond_dataset
         if dataset_params is None:
             dataset_params = self.dataset_params
         dataset_params = dataset_params.get(split, None)
@@ -222,61 +124,23 @@ class ConfigBuilder(object):
             return None
         if type(dataset_params) == dict:
             dataset_type = str.lower(dataset_params.get('type', 'fourcastceph'))
-            if dataset_type == 'hko7':
-                dataset = data_hko(split=split, **dataset_params)
-            elif dataset_type == 'hko7_mp':
-                dataset = data_hko_mp(split=split, **dataset_params)
-            elif dataset_type == 'sevir':
+            if dataset_type == 'sevir':
+                from datasets.sevir_used import get_sevir_dataset
                 dataset = get_sevir_dataset(split=split, **dataset_params)
             elif dataset_type == 'sevir_pretrain':
+                from datasets.sevir_pretrain_used import sevir_pretrain
                 dataset = sevir_pretrain(split=split, **dataset_params)
-            elif dataset_type == 'sevir_field_cond':
-                dataset = get_sevir_field_cond_dataset(split=split, **dataset_params)
             elif dataset_type == 'sevir_preprocess':
-                from datasets.sevir_preprocess import get_sevir_dataset
+                from datasets.sevir_preprocess_used import get_sevir_dataset
                 dataset = get_sevir_dataset(split=split, **dataset_params)
             elif dataset_type == 'sevir_latent':
-                from datasets.sevir_latent import get_sevir_latent_dataset
+                from datasets.sevir_latent_used import get_sevir_latent_dataset
                 dataset = get_sevir_latent_dataset(split=split, **dataset_params)
-            elif dataset_type == 'sevir_latent_field_cond':
-                from datasets.sevir_latent_field_cond import get_sevir_latent_field_cond_dataset
-                dataset = get_sevir_latent_field_cond_dataset(split=split, **dataset_params)
-            elif dataset_type == 'sevir_latent_event':
-                from datasets.sevir_latent_event import get_sevir_latent_event_dataset
-                dataset = get_sevir_latent_event_dataset(split=split, **dataset_params)
-            elif dataset_type == 'hko7_pretrain':
-                from datasets.hko7_pretrain import hko7_pretrain
-                dataset = hko7_pretrain(split=split, **dataset_params)
-            elif dataset_type == 'sevir_latent25':
-                from datasets.sevir_latent25 import get_sevir_latent25_dataset
-                dataset = get_sevir_latent25_dataset(split=split, **dataset_params)
-            elif dataset_type == 'hko7_preprocess':
-                from datasets.hko7_preprocess import hko7_preprocess
-                dataset = hko7_preprocess(split=split, **dataset_params)
-            elif dataset_type == 'hko7_pred2latent':
-                from datasets.hko7_pred2latent import hko7_pred2latent
-                dataset = hko7_pred2latent(split=split, **dataset_params)
-            elif dataset_type == 'hko7_latent':
-                from datasets.hko7_latent import hko7_latent
-                dataset = hko7_latent(split=split, **dataset_params)
-            elif dataset_type == 'sevir_latent25_and_coarse_pred':
-                from datasets.sevir_latent25_and_coarse_pred import get_sevir_latent25_and_coarse_pred_dataset
-                dataset = get_sevir_latent25_and_coarse_pred_dataset(split=split, **dataset_params)
-            elif dataset_type == 'meteonet_24':
-                from datasets.meteonet import meteonet_24
-                dataset = meteonet_24(split=split, **dataset_params)
-            elif dataset_type == 'meteonet_pretrain':
-                from datasets.meteonet_pretrain import meteonet_pretrain
-                dataset = meteonet_pretrain(split=split, **dataset_params)
-            elif dataset_type == 'meteonet_preprocess':
-                from datasets.meteonet_preprocess import meteonet_preprocess
-                dataset = meteonet_preprocess(split=split, **dataset_params)
-            elif dataset_type == 'meteonet_latent':
-                from datasets.meteonet_latent import meteonet_latent
-                dataset = meteonet_latent(split=split, **dataset_params)
+            elif dataset_type == 'sevir_diffusion_eval':
+                from datasets.sevir_diffusion_eval import get_sevir_latent_dataset
+                dataset = get_sevir_latent_dataset(split=split, **dataset_params)
             else:
                 raise NotImplementedError('Invalid dataset type: {}.'.format(dataset_type))
-            #logger.info('Load {} dataset as {}ing set with {} samples.'.format(dataset_type, split, len(dataset)))
         else:
             raise AttributeError('Invalid dataset format.')
         return dataset
@@ -571,53 +435,6 @@ def get_optimizer(model, optimizer_params = None, resume = False, resume_lr = No
     else:
         raise NotImplementedError('Invalid optimizer type.')
     return optimizer
-
-# def get_lr_scheduler(optimizer, lr_scheduler_params = None, resume = False, resume_epoch = None):
-#     """
-#     Get the learning rate scheduler from configuration.
-    
-#     Parameters
-#     ----------
-    
-#     optimizer: an optimizer;
-    
-#     lr_scheduler_params: dict, optional, default: None. If lr_scheduler_params is provided, then use the parameters specified in the lr_scheduler_params to build the learning rate scheduler. Otherwise, the learning rate scheduler parameters in the self.params will be used to build the learning rate scheduler;
-
-#     resume: bool, optional, default: False, whether to resume training from an existing checkpoint;
-
-#     resume_epoch: int, optional, default: None, the epoch of the checkpoint.
-    
-#     Returns
-#     -------
-
-#     A learning rate scheduler for the given optimizer.
-#     """
-#     from torch.optim.lr_scheduler import MultiStepLR, ExponentialLR, CyclicLR, CosineAnnealingLR, LambdaLR, StepLR, OneCycleLR, ReduceLROnPlateau
-#     type = lr_scheduler_params.get('type', '')
-#     params = lr_scheduler_params.get('params', {})
-#     if resume:
-#         params.update(last_epoch = resume_epoch)
-#     if type == 'MultiStepLR':
-#         scheduler = MultiStepLR(optimizer, **params)
-#     elif type == 'ExponentialLR':
-#         scheduler = ExponentialLR(optimizer, **params)
-#     elif type == 'CyclicLR':
-#         scheduler = CyclicLR(optimizer, **params)
-#     elif type == 'CosineAnnealingLR':
-#         scheduler = CosineAnnealingLR(optimizer, **params)
-#     elif type == 'LambdaLR':
-#         scheduler = LambdaLR(optimizer, **params)
-#     elif type == 'ReduceLROnPlateau':
-#         scheduler = ReduceLROnPlateau(optimizer, **params)
-#     elif type == 'StepLR':
-#         scheduler = StepLR(optimizer, **params)
-#     elif type == 'OneCycleLR':
-#         scheduler = OneCycleLR(optimizer, **params)
-#     elif type == '':
-#         scheduler = None
-#     else:
-#         raise NotImplementedError('Invalid learning rate scheduler type.')
-#     return scheduler
 
 
 def get_lr_scheduler(optimizer, lr_scheduler_params = None, resume = False, resume_epoch = None):

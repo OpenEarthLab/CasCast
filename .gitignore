@@ -2,14 +2,15 @@
 /train_job
 /tools
 /wandb
-/scripts
 /None
 /diffusion_noise
 /preprocess
 /wandb
+**/__pycache__
+**/valid_options.yaml
+
 
 *.pyc
-*.png
 *.pth
 *.txt
 *.pkl

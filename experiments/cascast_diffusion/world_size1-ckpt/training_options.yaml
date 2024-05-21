@@ -1,0 +1,150 @@
+tensor_model_parallel_size: 1
+resume: false
+resume_from_config: false
+seed: 0
+cuda: 0
+world_size: 1
+per_cpus: 4
+local_rank: 0
+init_method: tcp://127.0.0.1:47950
+outdir: /mnt/lustre/gongjunchao/release_code/cascast/experiments/cascast_diffusion
+cfg: ./configs/sevir_used/cascast_diffusion.yaml
+desc: debug
+visual_vars: null
+debug: true
+resume_checkpoint: null
+resume_cfg_file: null
+rank: 0
+distributed: false
+relative_checkpoint_dir: cascast_diffusion/world_size1-ckpt
+sevir:
+  type: sevir_diffusion_eval
+  input_length: 13
+  pred_length: 12
+  total_length: 25
+  base_freq: 5min
+  data_dir: radar:s3://sevir_latent
+  latent_gt_dir: path/to/latent_gt
+  latent_deterministic_dir: /mnt/lustre/gongjunchao/release_code/cascast/latent_data/earthformer_example #path/to/latent_prediction
+  latent_size: 48x48x4
+dataset:
+  train:
+    type: sevir_diffusion_eval
+    input_length: 13
+    pred_length: 12
+    total_length: 25
+    base_freq: 5min
+    data_dir: radar:s3://sevir_latent
+    latent_gt_dir: path/to/latent_gt
+    latent_deterministic_dir: /mnt/lustre/gongjunchao/release_code/cascast/latent_data/earthformer_example #path/to/latent_prediction
+    latent_size: 48x48x4
+  valid:
+    type: sevir_diffusion_eval
+    input_length: 13
+    pred_length: 12
+    total_length: 25
+    base_freq: 5min
+    data_dir: radar:s3://sevir_latent
+    latent_gt_dir: path/to/latent_gt
+    latent_deterministic_dir: /mnt/lustre/gongjunchao/release_code/cascast/latent_data/earthformer_example #path/to/latent_prediction
+    latent_size: 48x48x4
+sampler:
+  type: TrainingSampler
+dataloader:
+  num_workers: 8
+  pin_memory: false
+  prefetch_factor: 2
+  persistent_workers: true
+trainer:
+  batch_size: 8
+  valid_batch_size: 12
+  max_epoch: 1
+  max_step: 100000
+model:
+  type: latent_diffusion_model_eval
+  params:
+    diffusion_kwargs:
+      noise_scheduler:
+        DDPMScheduler:
+          num_train_timesteps: 1000
+          beta_start: 0.0001
+          beta_end: 0.02
+          beta_schedule: linear
+          clip_sample_range: 13
+          prediction_type: epsilon
+      classifier_free_guidance:
+        p_uncond: 0.1
+        guidance_weight: 1
+    sub_model:
+      casformer:
+        arch: DiT-custom
+        config:
+          input_size: 48
+          in_channels: 8
+          mlp_ratio: 4.0
+          learn_sigma: false
+          out_channels: 48
+          split_num: 12
+          num_heads: 16
+          single_heads_num: 4
+          hidden_size: 1152
+          enc_hidden_size: 256
+          patch_size: 2
+          enc_depth: 12
+          latent_depth: 12
+      autoencoder_kl:
+        in_channels: 1
+        out_channels: 1
+        down_block_types:
+        - DownEncoderBlock2D
+        - DownEncoderBlock2D
+        - DownEncoderBlock2D
+        - DownEncoderBlock2D
+        up_block_types:
+        - UpDecoderBlock2D
+        - UpDecoderBlock2D
+        - UpDecoderBlock2D
+        - UpDecoderBlock2D
+        block_out_channels:
+        - 128
+        - 256
+        - 512
+        - 512
+        layers_per_block: 2
+        latent_channels: 4
+        norm_num_groups: 32
+    save_best: MSE
+    use_ceph: false
+    ceph_checkpoint_path: mpas:s3://sevir/checkpoint
+    metrics_type: None
+    data_type: fp32
+    visualizer:
+      visualizer_type: sevir_visualizer
+      visualizer_step: 4000
+    optimizer:
+      casformer:
+        type: AdamW
+        params:
+          lr: 0.0005
+          betas:
+          - 0.9
+          - 0.95
+    lr_scheduler:
+      casformer:
+        by_step: true
+        sched: cosine
+        epochs: 1
+        min_lr: 1.0e-05
+        warmup_lr: 1.0e-05
+        warmup_epochs: 0.1
+        lr_noise: null
+        cooldown_epochs: 0
+    extra_params:
+      loss_type: MSELoss
+      enabled_amp: false
+      log_step: 20
+      predictor_checkpoint_path: None
+      autoencoder_checkpoint_path: ckpts/autoencoder/ckpt.pth
+      save_epoch_interval: 20
+    wandb:
+      project_name: sevir

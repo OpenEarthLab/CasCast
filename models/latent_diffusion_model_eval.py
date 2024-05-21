@@ -15,7 +15,7 @@ import wandb
 
 from einops import rearrange
 
-class latent_diffusion_model(basemodel):
+class latent_diffusion_model_eval(basemodel):
     def __init__(self, logger, **params) -> None:
         super().__init__(logger, **params)
         self.logger_print_time = False
@@ -82,9 +82,7 @@ class latent_diffusion_model(basemodel):
     def data_preprocess(self, data):
         data_dict = {}
         inp_data = data['inputs'].float().to(self.device, non_blocking=True, dtype=self.data_type)
-        tar_data = data['data_samples']['latent'].float().to(self.device, non_blocking=True, dtype=self.data_type)
-        original_tar = data['data_samples']['original'].float().to(self.device, non_blocking=True, dtype=self.data_type)
-        data_dict.update({'inputs': inp_data, 'data_samples': tar_data, 'original': original_tar})
+        data_dict.update({'inputs': inp_data})
         return data_dict
     
     @torch.no_grad()
@@ -171,140 +169,29 @@ class latent_diffusion_model(basemodel):
         self.register_buffer('scale_factor', scale_factor)
 
     def train_one_step(self, batch_data, step):
-        data_dict = self.data_preprocess(batch_data)
-        inp, tar = data_dict['inputs'], data_dict['data_samples'] 
-        original_tar = data_dict['original']
-
-        b, t, c, h, w = tar.shape
-        ## inp is coarse prediction in latent space, tar is gt in latent space
-        z_tar = tar
-        z_coarse_prediction = inp
-        ## init scale_factor ##
-        if self.scale_factor == 1.0:
-            self.init_scale_factor(tar)
-        ## scale ##
-        z_tar = z_tar * self.scale_factor
-        z_coarse_prediction = z_coarse_prediction * self.scale_factor
-        ## classifier free guidance ##
-        p = torch.rand(1)
-        if p < self.p_uncond: ## discard condition
-            z_coarse_prediction_cond = torch.zeros_like(z_coarse_prediction)
-        else:
-            z_coarse_prediction_cond = z_coarse_prediction
-        ## sample noise to add ##
-        noise = torch.randn_like(z_tar)
-        ## sample random timestep for each ##
-        bs = inp.shape[0]
-        timesteps = torch.randint(0, self.noise_scheduler.config.num_train_timesteps, (bs,), device=inp.device)
-        noisy_tar = self.noise_scheduler.add_noise(z_tar, noise, timesteps)
-
-        ## predict the noise residual ##
-        noise_pred = self.model[list(self.model.keys())[0]](x=noisy_tar, timesteps=timesteps, cond=z_coarse_prediction_cond)
-
-        loss = self.loss(noise_pred, noise) ## important: rescale the loss
-        loss.backward()
-
-        ## update params of diffusion model ##
-        self.optimizer[list(self.model.keys())[0]].step()
-        self.optimizer[list(self.model.keys())[0]].zero_grad()
-
-        if self.visualizer_type == 'sevir_visualizer' and (step) % self.visualizer_step==0:
-            z_sample_prediction = self.denoise(template_data=z_tar, cond_data=z_coarse_prediction, bs=1)
-            z_sample_prediction = rearrange(z_sample_prediction, 'b t c h w -> (b t) c h w').contiguous()
-            sample_prediction = self.decode_stage(z_sample_prediction)
-            sample_prediction = rearrange(sample_prediction, '(b t) c h w -> b t c h w', t=t) 
-            self.visualizer.save_pixel_image(pred_image=sample_prediction, target_img=original_tar, step=step)
-        else:
-            pass
-        return {self.loss_type: loss.item()}
+        pass
     
         
     @torch.no_grad()
     def test_one_step(self, batch_data):
-        data_dict = self.data_preprocess(batch_data)
-        inp, tar = data_dict['inputs'], data_dict['data_samples']
-        b, t, c, h, w = tar.shape
-        ## inp is coarse prediction in latent space, tar is gt in latent space
-        z_tar = tar
-        z_coarse_prediction = inp
-        ## scale ##
-        z_tar = z_tar * self.scale_factor
-        z_coarse_prediction = z_coarse_prediction * self.scale_factor
-        ## sample noise to add ##
-        noise = torch.randn_like(z_tar)
-        ## sample random timestep for each ##
-        bs = inp.shape[0]
-        timesteps = torch.randint(0, self.noise_scheduler.config.num_train_timesteps, (bs,), device=inp.device)
-        noisy_tar = self.noise_scheduler.add_noise(z_tar, noise, timesteps)
-
-        ## predict the noise residual ##
-        noise_pred = self.model[list(self.model.keys())[0]](x=noisy_tar, timesteps=timesteps, cond=z_coarse_prediction)
-
-        loss_records = {}
-        ## evaluate other metrics ##
-        data_dict = {}
-        data_dict['gt'] = noise
-        data_dict['pred'] = noise_pred
-        MSE_loss = torch.mean((noise_pred - noise) ** 2).item()
-        loss = self.loss(noise_pred, noise) ## important: rescale the loss
-
-        ## evaluation ##
-        if self.metrics_type == 'SEVIRSkillScore':
-            csi_total = 0
-            ## to pixel ##
-            data_dict['gt'] = data_dict['gt'].squeeze(2) * 255
-            data_dict['pred'] = data_dict['pred'].squeeze(2) * 255
-            self.eval_metrics.update(target=data_dict['gt'].cpu(), pred=data_dict['pred'].cpu())
-            metrics = self.eval_metrics.compute()
-            for i, thr in enumerate(self.eval_metrics.threshold_list):
-                loss_records.update({f'CSI_{thr}': metrics[thr
-                ]['csi']})
-                csi_total += metrics[thr]['csi']
-            loss_records.update({'CSI_m': csi_total / len(self.eval_metrics.threshold_list)})
-            loss_records.update({'MSE': MSE_loss})
-        else:
-            loss_records.update({'MSE': MSE_loss})
-
-        return loss_records
+        pass
     
     @torch.no_grad()
     def test(self, test_data_loader, epoch):
-        metric_logger = utils.MetricLogger(delimiter="  ", sync=True)
-        # set model to eval
-        for key in self.model:
-            self.model[key].eval()
-        data_loader = test_data_loader
-
-        for step, batch in enumerate(data_loader):
-            if self.debug and step>= 2:
-                break
-
-            loss = self.test_one_step(batch)
-            metric_logger.update(**loss)
-
-        self.logger.info('  '.join(
-                [f'Epoch [{epoch + 1}](val stats)',
-                 "{meters}"]).format(
-                    meters=str(metric_logger)
-                 ))
-
-        return metric_logger
+        pass
     
     @torch.no_grad()
     def eval_step(self, batch_data, step):
         data_dict = self.data_preprocess(batch_data)
-        inp, tar = data_dict['inputs'], data_dict['data_samples']
-        original_tar = data_dict['original']
-        b, t, c, h, w = tar.shape
+        inp = data_dict['inputs']
+        b, t, c, h, w = inp.shape
         ## inp is coarse prediction in latent space, tar is gt in latent space
-        z_tar = tar
         z_coarse_prediction = inp
         ## scale ##
-        z_tar = z_tar * self.scale_factor
         z_coarse_prediction = z_coarse_prediction * self.scale_factor
         ## sample image ##
         losses = {}
-        z_sample_prediction = self.denoise(template_data=z_tar, cond_data=z_coarse_prediction, bs=tar.shape[0], vis=True, cfg=self.cfg_weight, ensemble_member=self.ens_member)
+        z_sample_prediction = self.denoise(template_data=z_coarse_prediction, cond_data=z_coarse_prediction, bs=b, vis=True, cfg=self.cfg_weight, ensemble_member=self.ens_member)
         len_shape_prediction = len(z_sample_prediction.shape)
         assert len_shape_prediction == 6
         n = z_sample_prediction.shape[1]
@@ -318,20 +205,11 @@ class latent_diffusion_model(basemodel):
         sample_predictions = torch.stack(sample_predictions, dim=1)
         ## evaluate other metrics ##
         data_dict = {}
-        if self.metrics_type == 'SEVIRSkillScore':
-            data_dict['gt'] =  original_tar
-            data_dict['pred'] = sample_predictions.mean(dim=1)
-            self.eval_metrics.update(target=data_dict['gt'], pred=data_dict['pred'])
-            ############
-            sf_dict = self.eval_metrics.get_single_frame_metrics(target=data_dict['gt'], pred=data_dict['pred'])
-            crps_dict = self.eval_metrics.get_crps(target=data_dict['gt'], pred=sample_predictions)
-            losses.update(sf_dict)
-            losses.update(crps_dict)
-        else:
-            pass
-            ############
+        data_dict['pred'] = sample_predictions.mean(dim=1)
+        data_dict['gt'] = sample_predictions.mean(dim=1)
+        ############
         ## save image ##
-        if self.visualizer_type == 'sevir_visualizer' and (step) % 2 == 0:
+        if self.visualizer_type == 'sevir_visualizer' and (step) % 1 == 0:
             self.visualizer.save_pixel_image(pred_image=data_dict['pred'], target_img=data_dict['gt'], step=step)
         else:
             pass
@@ -358,12 +236,7 @@ class latent_diffusion_model(basemodel):
         from megatron_utils.tensor_parallel.data import get_data_loader_length
         total_step = get_data_loader_length(test_data_loader)
 
-        # from utils.metrics import cal_FVD
-        # self.fvd_computer = cal_FVD(use_gpu=True)
-
         for step, batch in enumerate(data_loader):
-            if isinstance(batch, int):
-                batch = None
             losses = self.eval_step(batch_data=batch, step=step)
             metric_logger.update(**losses)
 
@@ -375,17 +248,4 @@ class latent_diffusion_model(basemodel):
                  "{meters}"]).format(
                     meters=str(metric_logger)
                  ))
-        metrics = self.eval_metrics.compute()
-        for thr, thr_dict in metrics.items():
-            for k, v in thr_dict.items():
-                losses.update({f'{thr}-{k}': v})
-        ###################################################
-        try:
-            metric_logger.update(**losses)
-            self.logger.info('final results: {meters}'.format(meters=str(metric_logger)))
-        except:
-            ## save as excel ##
-            import pandas as pd
-            df = pd.DataFrame.from_dict(losses)
-            df.to_excel(f'{self.visualizer.exp_dir}/{self.visualizer.sub_dir}_losses.xlsx')
         return None
