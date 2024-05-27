@@ -1,4 +1,4 @@
-## CasCast: Skillful High-resolution Precipitation Nowcasting via Cascaded Modelling<br><sub>Official PyTorch Implementation</sub>
+## CasCast: Skillful High-resolution Precipitation Nowcasting via Cascaded Modelling （ICML 2024）<br><sub>Official PyTorch Implementation</sub>
 
 ### [Paper](https://arxiv.org/pdf/2402.04290)
 
